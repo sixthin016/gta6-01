@@ -1,8 +1,12 @@
-// Neon Bay — all sound is synthesised with WebAudio: engine hum, sirens,
-// gunshots, punches, pickups and a sunny bass-and-keys loop. No audio file
-// is loaded; every sound is built from oscillators and filtered noise.
-// Everything is guarded so a browser without audio (or a headless shot run)
-// simply stays silent instead of throwing.
+// Neon Bay — audio.js
+// All sound is synthesised with WebAudio: engine hum, sirens, helicopter
+// rotor, gunshots per weapon, NOS whoosh, and four procedural radio
+// stations (different waveforms and tempos). No audio file is loaded.
+// Everything is guarded so a browser without audio (or a headless shot
+// run) simply stays silent instead of throwing.
+
+import { RADIO } from './config.js';
+
 export function createAudio() {
   let ctx = null;
   let master = null;
@@ -10,10 +14,12 @@ export function createAudio() {
   let engineGain = null;
   let sirenOsc = null;
   let sirenGain = null;
+  let rotorOsc = null;
+  let rotorGain = null;
   let muted = false;
   let musicTimer = 0;
   let musicStep = 0;
-  // A bright little bass line in C major pentatonic, looped.
+  let station = 0;
   const BASS = [130.81, 0, 164.81, 0, 196.0, 0, 164.81, 146.83, 130.81, 0, 196.0, 0, 220.0, 196.0, 164.81, 0];
   const KEYS = [523.25, 0, 587.33, 659.25, 0, 587.33, 523.25, 0, 440.0, 0, 523.25, 0, 659.25, 0, 587.33, 0];
 
@@ -49,6 +55,18 @@ export function createAudio() {
       sirenOsc.connect(sirenGain);
       sirenGain.connect(master);
       sirenOsc.start();
+      rotorOsc = ctx.createOscillator();
+      rotorOsc.type = 'square';
+      rotorOsc.frequency.value = 28;
+      rotorGain = ctx.createGain();
+      rotorGain.gain.value = 0;
+      const rotorFilter = ctx.createBiquadFilter();
+      rotorFilter.type = 'lowpass';
+      rotorFilter.frequency.value = 220;
+      rotorOsc.connect(rotorFilter);
+      rotorFilter.connect(rotorGain);
+      rotorGain.connect(master);
+      rotorOsc.start();
       return true;
     } catch {
       ctx = null;
@@ -101,7 +119,8 @@ export function createAudio() {
       muted = value;
       if (master) master.gain.value = muted ? 0 : 0.35;
     },
-    /** Continuous engine hum follows the car's speed; silent on foot. */
+    get station() { return station; },
+    setStation(i) { station = ((i % RADIO.length) + RADIO.length) % RADIO.length; musicStep = 0; },
     engine(speed01) {
       if (!ctx || muted) return;
       try {
@@ -109,24 +128,32 @@ export function createAudio() {
         engineOsc.frequency.setTargetAtTime(50 + speed01 * 130, ctx.currentTime, 0.08);
       } catch { /* silent */ }
     },
-    /** Two-tone siren wail while any police are hunting. */
     siren(on, time) {
       if (!ctx || muted) return;
       try {
-        if (!on) {
-          sirenGain.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
-          return;
-        }
+        if (!on) { sirenGain.gain.setTargetAtTime(0, ctx.currentTime, 0.1); return; }
         sirenGain.gain.setTargetAtTime(0.05, ctx.currentTime, 0.1);
         sirenOsc.frequency.value = 700 + 260 * Math.sin(time * 5);
       } catch { /* silent */ }
     },
-    shot() { noiseBurst(0.12, 0.5, 2600); },
+    heli(on, time) {
+      if (!ctx || muted) return;
+      try {
+        if (!on) { rotorGain.gain.setTargetAtTime(0, ctx.currentTime, 0.1); return; }
+        rotorGain.gain.setTargetAtTime(0.07, ctx.currentTime, 0.1);
+        rotorOsc.frequency.value = 26 + 4 * Math.sin(time * 11);
+      } catch { /* silent */ }
+    },
+    shot(weapon) {
+      if (weapon === 'shotgun') noiseBurst(0.22, 0.6, 1200);
+      else if (weapon === 'sniper') noiseBurst(0.3, 0.55, 3200);
+      else if (weapon === 'smg') noiseBurst(0.07, 0.35, 2600);
+      else noiseBurst(0.12, 0.5, 2600);
+    },
+    nos() { noiseBurst(0.5, 0.3, 4000); },
     punch() { noiseBurst(0.08, 0.3, 700); },
     crash() { noiseBurst(0.25, 0.5, 500); },
-    /** Two-tone car horn when you steal a car. */
     horn() { blip(370, 0.18, 'square', 0.22); setTimeout(() => blip(466, 0.22, 'square', 0.22), 140); },
-    /** Cash-register chime when a mission pays out. */
     cash() { blip(988, 0.08, 'sine', 0.25); setTimeout(() => blip(1319, 0.14, 'sine', 0.25), 90); },
     pickup() { blip(660, 0.09, 'sine', 0.25); blip(990, 0.12, 'sine', 0.2); },
     missionDone() {
@@ -136,16 +163,17 @@ export function createAudio() {
     },
     busted() { blip(220, 0.5, 'sawtooth', 0.25, 110); },
     wantedUp() { blip(880, 0.08, 'square', 0.18); blip(880, 0.08, 'square', 0.18); },
-    /** Step the music loop; call every frame with the frame time. */
     update(dt, playing) {
       if (!ctx || muted || !playing) return;
       musicTimer -= dt;
       if (musicTimer > 0) return;
-      musicTimer = 0.22;
+      const st = RADIO[station];
+      musicTimer = 60 / st.bpm / 2;
       const bass = BASS[musicStep % BASS.length];
       const key = KEYS[musicStep % KEYS.length];
-      if (bass) blip(bass, 0.2, 'triangle', 0.10);
-      if (key) blip(key, 0.16, 'sine', 0.05);
+      const scale = st.base / 110;
+      if (bass) blip(bass * scale, 0.2, st.wave, 0.10);
+      if (key) blip(key * scale, 0.16, 'sine', 0.05);
       musicStep += 1;
     },
   };

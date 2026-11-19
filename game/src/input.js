@@ -1,11 +1,21 @@
-// Neon Bay — keyboard and mouse input. One job: keys held, one-shot actions,
-// and the mouse (aim + drag to orbit the chase camera). Presses are
-// edge-triggered and consumed once, so E to enter a car fires once per tap.
+// Neon Bay — input.js
+// Keyboard and mouse input. One job: keys held, one-shot actions, and the
+// mouse (aim + drag to orbit the chase camera). Presses are edge-triggered
+// and consumed once, so E to enter a car fires once per tap.
+
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_ENTER = 4;
 export const ACTION_PUNCH = 8;
 export const ACTION_MUTE = 16;
+export const ACTION_WHEEL = 32;
+export const ACTION_COVER = 64;
+export const ACTION_GARAGE = 128;
+export const ACTION_RADIO = 256;
+export const ACTION_WEAPON_1 = 512;
+export const ACTION_WEAPON_2 = 1024;
+export const ACTION_WEAPON_3 = 2048;
+export const ACTION_WEAPON_4 = 4096;
 
 const KEY_ACTIONS = {
   enter: ACTION_CONFIRM,
@@ -15,6 +25,14 @@ const KEY_ACTIONS = {
   e: ACTION_ENTER,
   f: ACTION_PUNCH,
   m: ACTION_MUTE,
+  q: ACTION_WHEEL,
+  c: ACTION_COVER,
+  g: ACTION_GARAGE,
+  r: ACTION_RADIO,
+  1: ACTION_WEAPON_1,
+  2: ACTION_WEAPON_2,
+  3: ACTION_WEAPON_3,
+  4: ACTION_WEAPON_4,
 };
 
 export function createInput(canvas, onOrbit) {
@@ -59,9 +77,7 @@ export function createInput(canvas, onOrbit) {
 
   return {
     mouse,
-    /** True while a key is held down (for hold-to-rob, not edge taps). */
     isHeld(key) { return keys.has(key); },
-    /** Movement axes, -1..1, from WASD or the arrow keys. */
     axes() {
       let x = 0;
       let y = 0;
@@ -69,16 +85,14 @@ export function createInput(canvas, onOrbit) {
       if (keys.has('d') || keys.has('arrowright')) x += 1;
       if (keys.has('w') || keys.has('arrowup')) y -= 1;
       if (keys.has('s') || keys.has('arrowdown')) y += 1;
-      return { x, y, run: keys.has('shift') };
+      return { x, y, run: keys.has('shift'), nos: keys.has(' ') };
     },
-    /** One-shot actions pressed since the last call; clears them. */
     takeActions() {
       let flags = 0;
       for (const key of pressed) flags |= KEY_ACTIONS[key] ?? 0;
       pressed.clear();
       return flags;
     },
-    /** True when the mouse was clicked since the last call. */
     takeClick() {
       const was = mouse.clicked;
       mouse.clicked = false;
