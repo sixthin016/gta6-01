@@ -1,70 +1,42 @@
-// Neon Bay — shared tuning constants for the whole open-world game.
-// Every system reads these numbers from one place so the city, the cars,
-// the police and the missions all agree on the same world.
-export const STEP = 1 / 60;
-export const WORLD_W = 3200;
-export const WORLD_H = 2400;
-export const ROAD_W = 96;
-export const ROAD_SPACING = 400;
-export const SIDEWALK = 26;
-export const SAVE_KEY = 'neonbay-save-v1';
-export const MONEY_KEY = 'neonbay-best-money-v1';
-
-// Roads: vertical centre lines and horizontal centre lines of the street grid.
-export const ROADS_V = [200, 600, 1000, 1400, 1800, 2200, 2600];
-export const ROADS_H = [200, 600, 1000, 1400, 1800, 2200];
-
-// The beach: sand starts here, open water starts here. Cars and feet stop at the sand.
-export const SAND_X = 2760;
-export const WATER_X = 2920;
-
-// Player on foot.
-export const WALK_SPEED = 170;
-export const RUN_SPEED = 290;
-export const PLAYER_RADIUS = 14;
-export const PLAYER_MAX_HP = 100;
-
-// Cars.
-export const CAR_W = 34;
-export const CAR_LEN = 62;
-export const CAR_ACCEL = 460;
-export const CAR_BRAKE = 700;
-export const CAR_MAX_SPEED = 430;
-export const CAR_MAX_REVERSE = 150;
-export const CAR_TURN = 2.6;
-export const TRAFFIC_SPEED = 130;
-export const POLICE_SPEED = 470;
-
-// Combat.
-export const PISTOL_AMMO_START = 30;
-export const PISTOL_RANGE = 520;
-export const PISTOL_DAMAGE = 34;
-export const PUNCH_RANGE = 46;
-export const PUNCH_DAMAGE = 20;
-
-// Wanted.
-export const WANTED_MAX = 5;
-export const WANTED_DECAY_SECONDS = 7;
-export const CRIME_QUIET_SECONDS = 9;
-
-// The clock on the HUD starts here and ticks while you play.
-export const CLOCK_START_MINUTES = 10 * 60 + 5;
-
-// Colours of the sun-soaked city. Nothing here is borrowed from any other game.
-export const PALETTE = {
-  grass: '#7ec850',
-  grassDark: '#6db544',
-  road: '#3a3f4a',
-  roadLine: '#f5d76e',
-  sidewalk: '#c9c2b4',
-  sand: '#f2dd9e',
-  water: '#2fa8d8',
-  waterDeep: '#1d7fb8',
-  park: '#5da83f',
-  buildingRoofs: ['#e2574c', '#f2a541', '#4c9de0', '#9b59d0', '#2ec4b6', '#f2708a', '#8bc34a', '#ff8c42'],
-  carColors: ['#e74c3c', '#3498db', '#f1c40f', '#ecf0f1', '#2ecc71', '#9b59b6', '#e67e22', '#1abc9c'],
-  policeCar: '#1c2733',
-  copUniform: '#22384f',
+// Neon Bay — tuning constants. One job: every number the 3D game balances on.
+export const CFG = {
+  seedDefault: 1,
+  worldHalf: 240,            // city spans -240..240 on x and z
+  block: 48,                // street grid spacing
+  roadHalf: 5,              // half width of a road
+  beachX: 190,              // east of this is sand, then water
+  waterX: 232,
+  walkSpeed: 9,
+  runSpeed: 14,
+  carAccel: 26,
+  carBrake: 42,
+  carMaxSpeed: 46,
+  carReverseMax: 12,
+  carTurn: 2.1,
+  trafficCount: 26,
+  pedCount: 30,
+  policeCount: 4,
+  wantedDecaySeconds: 14,   // wanted drops one star after this long unseen
+  bustedSeconds: 6,         // police touching you at 3+ stars busts you after this
+  saveKey: 'neonbay-save-v2',
+  colors: {
+    sky: 0x87bfe8, sun: 0xfff2cc, ground: 0x3f7a4a, road: 0x2b2f36,
+    sand: 0xe8d29a, water: 0x1e7fb8, sidewalk: 0x9aa0a8,
+  },
+  // Car paint palette (original, no licensed brands).
+  paints: [0xd23b3b, 0x2b6fd6, 0xe8b93a, 0x37b268, 0x8a4fd0, 0xe86a2a, 0xdddddd, 0x222831],
 };
 
-export const MISSION_REWARDS = [150, 300, 250, 400, 600];
+// Named places the missions and the HUD point at. Coordinates are world units.
+export const PLACES = {
+  garage:   { name: "Rook's Garage", x: -96, z: -96 },
+  pier:     { name: 'Neon Pier', x: 200, z: 48 },
+  marina:   { name: 'Marina', x: 200, z: -96 },
+  store:    { name: 'Sunset Corner Store', x: -48, z: 48 },
+  bank:     { name: 'Bay Trust Bank', x: 48, z: -48 },
+  hideout:  { name: 'Hideout', x: -144, z: 144 },
+  lighthouse:{ name: 'Lighthouse Point', x: 200, z: 144 },
+  plaza:    { name: 'Palm Plaza', x: 0, z: 0 },
+  diner:    { name: 'Neon Diner', x: -48, z: -144 },
+  stadium:  { name: 'Bay Stadium', x: 96, z: 144 },
+};

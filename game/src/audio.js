@@ -124,6 +124,10 @@ export function createAudio() {
     shot() { noiseBurst(0.12, 0.5, 2600); },
     punch() { noiseBurst(0.08, 0.3, 700); },
     crash() { noiseBurst(0.25, 0.5, 500); },
+    /** Two-tone car horn when you steal a car. */
+    horn() { blip(370, 0.18, 'square', 0.22); setTimeout(() => blip(466, 0.22, 'square', 0.22), 140); },
+    /** Cash-register chime when a mission pays out. */
+    cash() { blip(988, 0.08, 'sine', 0.25); setTimeout(() => blip(1319, 0.14, 'sine', 0.25), 90); },
     pickup() { blip(660, 0.09, 'sine', 0.25); blip(990, 0.12, 'sine', 0.2); },
     missionDone() {
       blip(523.25, 0.12, 'triangle', 0.25);

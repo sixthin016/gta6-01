@@ -5,24 +5,22 @@
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission
 // (with &seed=N) stages that scene instead of running the loop, paints it
-// twice and sets window.__shotReady for a screenshot.
-import { SAVE_KEY, STEP } from './config.js';
-import { createRandom } from './random.js';
-import {
-  createWorld, EVENT_BUSTED, EVENT_MISSION_DONE, EVENT_WASTED,
-} from './world.js';
+// and sets window.__shotReady for a screenshot.
+import * as THREE from 'three';
+import { CFG } from './config.js';
+import { createWorld3D, createGame, EVENT_BUSTED, EVENT_ENTER_CAR, EVENT_MISSION_DONE, EVENT_WASTED } from './world.js';
 import {
   ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_PAUSE, ACTION_PUNCH,
   createInput,
 } from './input.js';
 import { createAudio } from './audio.js';
 import {
-  createRenderer, SCREEN_BUSTED, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY,
-  SCREEN_TITLE,
+  createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE,
 } from './render.js';
 import { stageShot } from './shots.js';
 import { STORY_INTRO } from './missions.js';
 
+const STEP = 1 / 60;
 const MAX_FRAME = 0.25;
 const SAVE_EVERY_SECONDS = 5;
 
@@ -31,15 +29,18 @@ const shot = params.get('shot');
 const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
 const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
 
-const canvas = document.getElementById('game');
-const status = document.getElementById('status');
-const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
+const w3d = createWorld3D(seed);
+const game = createGame(w3d, seed);
+const renderer = createRenderer(w3d);
+document.body.appendChild(renderer.canvas);
 const audio = createAudio();
+const status = document.getElementById('status');
+const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
 function readSave() {
   try {
-    const raw = window.localStorage.getItem(SAVE_KEY);
+    const raw = window.localStorage.getItem(CFG.saveKey);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -48,26 +49,44 @@ function readSave() {
 
 function writeSave() {
   try {
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(world.serialize()));
+    window.localStorage.setItem(CFG.saveKey, JSON.stringify(game.serialize()));
   } catch {
     // Storage can be off (private windows): progress then lasts this visit only.
   }
 }
 
+/** Where on the ground plane the mouse points, for aiming the pistol. */
+function mouseGround(input) {
+  const rect = renderer.canvas.getBoundingClientRect();
+  const nx = ((input.mouse.x - rect.left) / rect.width) * 2 - 1;
+  const ny = -((input.mouse.y - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera({ x: nx, y: ny }, w3d.camera);
+  const hit = new THREE.Vector3();
+  if (raycaster.ray.intersectPlane(groundPlane, hit)) return { x: hit.x, z: hit.z };
+  const p = game.state.player;
+  return { x: p.x + 10, z: p.z };
+}
+
 function runShot(name) {
-  const scene = stageShot(name, world);
+  const scene = stageShot(name, game);
+  const screen = scene.screen === 'play' ? SCREEN_PLAY : SCREEN_TITLE;
+  // Let the camera settle behind the player, then paint and signal ready.
   let painted = 0;
   function paint() {
-    renderer.draw(world, scene.screen, { saveExists: false, muted: false, overKind: 'wasted' });
+    renderer.update(game.state, STEP, game.state.time);
+    renderer.drawHud(game.state, screen, { saveExists: false, muted: false, overKind: 'wasted' });
+    renderer.render();
     painted += 1;
-    if (painted < 2) requestAnimationFrame(paint);
-    else window.__shotReady = true;
+    if (painted >= 12) window.__shotReady = true;
+    // Keep repainting: a headless screenshot only captures a fresh frame
+    // while the page keeps producing them.
+    requestAnimationFrame(paint);
   }
   requestAnimationFrame(paint);
 }
 
 function runGame() {
-  const input = createInput(canvas);
+  const input = createInput(renderer.canvas, (d) => renderer.orbit(d));
   const save = readSave();
   let screen = SCREEN_TITLE;
   let overKind = 'wasted';
@@ -76,19 +95,17 @@ function runGame() {
   let saveTimer = 0;
   let introLine = 0;
 
-  function announce(message) {
-    status.textContent = message;
-  }
+  function announce(message) { status.textContent = message; }
 
   function startGame() {
     audio.ensure();
     if (save) {
-      world.restore(save);
-      world.say('Welcome back to Neon Bay.', 4);
+      game.restore(save);
+      game.say('Welcome back to Neon Bay.', 4);
     } else {
-      world.reset();
-      world.startMission(0);
-      world.say(STORY_INTRO[0], 6);
+      game.reset();
+      game.startMission(0);
+      game.say(STORY_INTRO[0], 6);
       introLine = 1;
     }
     screen = SCREEN_PLAY;
@@ -107,9 +124,7 @@ function runGame() {
   function stepWorld(dt, actions) {
     const axes = input.axes();
     const clicked = input.takeClick();
-    const cam = world.state.camera;
-    const mouseWorldX = input.mouse.x - window.innerWidth / 2 + cam.x;
-    const mouseWorldY = input.mouse.y - window.innerHeight / 2 + cam.y;
+    const aim = mouseGround(input);
     const stepInput = {
       ax: axes.x,
       ay: axes.y,
@@ -118,17 +133,20 @@ function runGame() {
       enterHeld: input.isHeld('e'),
       punch: Boolean(actions & ACTION_PUNCH),
       click: clicked,
-      mouseX: mouseWorldX,
-      mouseY: mouseWorldY,
+      mouseX: aim.x,
+      mouseZ: aim.z,
+      camYaw: renderer.getCamYaw(),
     };
-    const events = world.step(dt, stepInput);
+    const events = game.step(dt, stepInput);
+    if (events & EVENT_ENTER_CAR) audio.horn();
     if (events & EVENT_BUSTED) endGame('busted');
     else if (events & EVENT_WASTED) endGame('wasted');
     else if (events & EVENT_MISSION_DONE) {
       audio.missionDone();
+      audio.cash();
       writeSave();
       if (introLine > 0 && introLine < STORY_INTRO.length) {
-        world.say(STORY_INTRO[introLine], 6);
+        game.say(STORY_INTRO[introLine], 6);
         introLine += 1;
       }
     }
@@ -154,23 +172,18 @@ function runGame() {
     accumulator += Math.min((now - last) / 1000, MAX_FRAME);
     last = now;
     if (screen === SCREEN_TITLE) {
-      // A living backdrop: traffic rolls behind the menu.
       while (accumulator >= STEP) {
-        world.step(STEP, { ax: 0, ay: 0, run: false, enter: false, enterHeld: false, punch: false, click: false, mouseX: 0, mouseY: 0 });
+        game.step(STEP, { ax: 0, ay: 0, run: false, enter: false, enterHeld: false, punch: false, click: false, mouseX: 0, mouseZ: 0, camYaw: 0 });
         accumulator -= STEP;
       }
       handleActions();
     } else if (screen === SCREEN_PLAY) {
-      // Read the pressed keys once per frame: pause/confirm here, the rest
-      // (enter car, punch, mute) rides along into the world step.
       const actions = input.takeActions();
       if (actions & ACTION_MUTE) audio.setMuted(!audio.muted);
       if (actions & ACTION_PAUSE) {
         screen = SCREEN_PAUSED;
         announce('Paused.');
       } else {
-        // Edge actions (enter car, punch) fire on the first sub-step only,
-        // so one tap never enters and exits the same car in one frame.
         let firstStep = true;
         while (accumulator >= STEP && screen === SCREEN_PLAY) {
           stepWorld(STEP, firstStep ? actions : 0);
@@ -187,17 +200,18 @@ function runGame() {
       accumulator = 0;
       handleActions();
     }
-    // Sound follows the game, never the menus.
-    const p = world.state.player;
+    const p = game.state.player;
     if (screen === SCREEN_PLAY) {
-      audio.engine(p.inCar ? Math.min(1, Math.abs(p.speed) / 430) : 0);
-      audio.siren(world.state.sirenOn, world.state.time);
+      audio.engine(p.inCar ? Math.min(1, Math.abs(p.speed) / CFG.carMaxSpeed) : 0);
+      audio.siren(game.state.sirenOn, game.state.time);
       audio.update(STEP, true);
     } else {
       audio.engine(0);
       audio.siren(false, 0);
     }
-    renderer.draw(world, screen, { saveExists: Boolean(save), muted: audio.muted, overKind });
+    renderer.update(game.state, STEP, game.state.time);
+    renderer.drawHud(game.state, screen, { saveExists: Boolean(save), muted: audio.muted, overKind });
+    renderer.render();
   }
 
   document.addEventListener('visibilitychange', () => {
