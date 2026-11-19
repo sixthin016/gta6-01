@@ -1,4 +1,4 @@
-# Neon Bay — 16 story missions, 3D open-world island city, 5-star police with heli + roadblocks + SWAT, weapon wheel, garage + NOS, shops + safehouses, exploding cars, crew abilities, districts + respect, hurricane countdown, radio, saves
+# Neon Bay — 16 story missions, 3D open-world island city, 5-star police with heli + SWAT, weapon wheel, garage + NOS, shops + safehouses, exploding cars, crew perks, hurricane countdown
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/sixthin016/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
