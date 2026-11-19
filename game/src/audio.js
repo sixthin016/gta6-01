@@ -1,9 +1,9 @@
 // Neon Bay — audio.js
 // All sound is synthesised with WebAudio: engine hum, sirens, helicopter
-// rotor, gunshots per weapon, NOS whoosh, and four procedural radio
-// stations (different waveforms and tempos). No audio file is loaded.
-// Everything is guarded so a browser without audio (or a headless shot
-// run) simply stays silent instead of throwing.
+// rotor, gunshots per weapon, NOS whoosh, car explosions, shop till, and
+// four procedural radio stations (different waveforms and tempos).
+// No audio file is loaded. Everything is guarded so a browser without
+// audio (or a headless shot run) simply stays silent instead of throwing.
 
 import { RADIO } from './config.js';
 
@@ -153,6 +153,18 @@ export function createAudio() {
     nos() { noiseBurst(0.5, 0.3, 4000); },
     punch() { noiseBurst(0.08, 0.3, 700); },
     crash() { noiseBurst(0.25, 0.5, 500); },
+    explosion() {
+      // A car going up: deep boom, then a long low rumble.
+      noiseBurst(0.7, 0.9, 300);
+      blip(120, 0.6, 'sine', 0.5, 35);
+      setTimeout(() => noiseBurst(0.5, 0.35, 180), 120);
+    },
+    buy() {
+      // Shop till: two bright register blips.
+      blip(1046, 0.07, 'sine', 0.25);
+      setTimeout(() => blip(1568, 0.14, 'sine', 0.25), 80);
+    },
+    door() { blip(880, 0.1, 'sine', 0.18); setTimeout(() => blip(1174, 0.12, 'sine', 0.18), 90); },
     horn() { blip(370, 0.18, 'square', 0.22); setTimeout(() => blip(466, 0.22, 'square', 0.22), 140); },
     cash() { blip(988, 0.08, 'sine', 0.25); setTimeout(() => blip(1319, 0.14, 'sine', 0.25), 90); },
     pickup() { blip(660, 0.09, 'sine', 0.25); blip(990, 0.12, 'sine', 0.2); },

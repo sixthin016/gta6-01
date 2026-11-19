@@ -13,8 +13,10 @@ export const PLACES = {
   pier:      { name: 'Neon Pier',           x: 208,  z: 52 },
   marina:    { name: 'Marina',              x: 208,  z: -104 },
   store:     { name: 'Sunset Corner Store', x: -52,  z: 52 },
+  baymart:   { name: 'Bay Mart',            x: 104,  z: 104 },
   bank:      { name: 'Bay Trust Bank',      x: 52,   z: -52 },
   hideout:   { name: 'Hideout',             x: -156, z: 156 },
+  villa:     { name: 'Palm Villa',          x: 0,    z: 208 },
   lighthouse:{ name: 'Lighthouse Point',    x: 208,  z: 156 },
   plaza:     { name: 'Palm Plaza',          x: 0,    z: 0 },
   diner:     { name: 'Neon Diner',          x: -52,  z: -156 },
@@ -26,6 +28,15 @@ export const PLACES = {
   watertower:{ name: 'Water Tower',         x: 208,  z: -208 },
   casino:    { name: 'Casino Royale Bay',   x: 104,  z: -104 },
   beach:     { name: 'Sunset Beach',        x: 208,  z: 104 },
+};
+
+// Shop and safehouse interiors: simple lit rooms built off the city grid
+// (east/west of the island, beyond the streets) so entering one is a real
+// change of place, not a menu over the street. The door sits on the south
+// wall; walking to it and pressing E steps back outside.
+export const INTERIORS = {
+  shop:      { x: 380,  z: 0, w: 18, d: 13, name: 'Shop interior' },
+  safehouse: { x: -380, z: 0, w: 18, d: 13, name: 'Safehouse interior' },
 };
 
 // Street-race ring: 8 checkpoints around the island, used by mission 5.

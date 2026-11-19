@@ -1,10 +1,15 @@
 // Neon Bay — render.js
 // One job: the 3D chase camera, the DOM HUD and the 2D minimap, plus the
-// weapon wheel and garage overlays. The scene is built in world.js; this
-// file only points the camera, syncs meshes to state, and draws the HUD.
+// weapon wheel, garage and shop overlays. The scene is built in world.js;
+// this file only points the camera, syncs meshes to state, and draws the
+// HUD. It also drives the wet-streets look: as the hurricane rain builds,
+// the glossy overlay and puddles fade in and the neon signs glow harder.
 
 import * as THREE from 'three';
-import { CONFIG, WEAPONS, GARAGE_UPGRADES, RADIO, districtAt } from './config.js';
+import {
+  CONFIG, WEAPONS, GARAGE_UPGRADES, RADIO, SHOPS, SAFEHOUSES,
+  SHOP_ITEMS, CREW_PERKS, districtAt,
+} from './config.js';
 import { missionObjective, missionTitle, missionTarget, MISSIONS } from './missions.js';
 import { RACE_RING } from './city.js';
 
@@ -58,6 +63,13 @@ export function createRenderer(w3d) {
         const bar = car.mesh.getObjectByName('lightbar');
         if (bar) bar.material.emissive.setHex(Math.floor(time * 6) % 2 === 0 ? 0xff2222 : 0x2244ff);
       }
+      // A smoking car puffs harder as it nears the blast.
+      const smoke = car.mesh.getObjectByName('smoke');
+      if (smoke) {
+        const k = 1 + Math.sin(time * 9 + car.x) * 0.25;
+        smoke.scale.setScalar(Math.max(0.6, k));
+        smoke.material.opacity = 0.55 + (car.hp <= 0 ? 0.2 : 0);
+      }
     }
     for (const ped of state.peds) {
       if (!ped.mesh) continue;
@@ -107,6 +119,19 @@ export function createRenderer(w3d) {
       pos.needsUpdate = true;
       w3d.rain.position.x = p.x;
       w3d.rain.position.z = p.z;
+    }
+    // Wet streets: glossy overlay + puddles fade in with the rain, and the
+    // neon signs glow harder — golden hour stays dry and warm.
+    if (w3d.wetOverlay) {
+      w3d.wetOverlay.material.opacity = storm > 0.12 ? storm * 0.4 : 0;
+      w3d.wetOverlay.position.x = p.x;
+      w3d.wetOverlay.position.z = p.z;
+    }
+    for (const puddle of w3d.puddles || []) {
+      puddle.material.opacity = storm > 0.12 ? storm * 0.55 : 0;
+    }
+    for (const glow of w3d.signGlows || []) {
+      glow.material.opacity = storm > 0.12 ? storm * 0.55 : 0;
     }
     for (const top of w3d.palmTops || []) {
       top.rotation.z = Math.sin(time * 2 + top.position.x) * storm * 0.25;
@@ -188,9 +213,9 @@ export function createRenderer(w3d) {
     const rob = (state.missionIndex < MISSIONS.length && ['rob', 'multi'].includes(MISSIONS[state.missionIndex].type)
       && state.missionStage === 0 && state.robProgress > 0)
       ? ` — working ${Math.round((state.robProgress / 3) * 100)}% (hold E)` : '';
-    const wait = state.missionIndex === 13 && state.waitProgress > 0
+    const wait = state.missionIndex === 15 && state.waitProgress > 0
       ? ` — dawn breaks… ${Math.round((state.waitProgress / 5) * 100)}%` : '';
-    const survive = MISSIONS[state.missionIndex] && MISSIONS[state.missionIndex].type === 'survive' && state.surviveLeft > 0
+    const survive = MISSIONS[state.missionIndex] && ['survive', 'defend'].includes(MISSIONS[state.missionIndex].type) && state.surviveLeft > 0
       ? ` — hold on ${Math.ceil(state.surviveLeft)}s` : '';
     const race = MISSIONS[state.missionIndex] && MISSIONS[state.missionIndex].type === 'race'
       ? ` — checkpoint ${state.raceCheckpoint}/8` : '';
@@ -198,6 +223,13 @@ export function createRenderer(w3d) {
     const wdef = WEAPONS[p.weapon];
     const slot = p.weapons[p.weapon];
     const crewNames = state.followers.map((f) => f.name).join(', ') || '—';
+    const perks = state.followers.map((f) => {
+      const perk = CREW_PERKS[f.name];
+      return perk ? `${perk.icon} ${f.name}: ${perk.text}` : f.name;
+    }).join(' • ');
+    const nearShop = state.nearShop ? `<br>🛒 ${state.nearShop.name} — press B to enter` : '';
+    const nearSafe = state.nearSafehouse ? `<br>🏠 ${state.nearSafehouse.name} — press H ($100: save + clear wanted)` : '';
+    const inside = state.interior ? `<br>📍 Inside the ${state.interior.kind === 'shop' ? 'shop' : 'safehouse'} — E at the green mat to leave` : '';
     const wheel = wheelOpen ? `<div class="wheel">${Object.entries(WEAPONS).map(([key, w]) => `
       <div class="wheel-item ${key === p.weapon ? 'sel' : ''}" data-weapon="${key}">
         <b>${w.name}</b><br><span>${p.weapons[key].ammo} / ${p.weapons[key].reserve}</span></div>`).join('')}
@@ -207,6 +239,11 @@ export function createRenderer(w3d) {
         <div class="g-row"><b>${u.name} Lv ${state.upgrades[u.id]}/${u.max}</b> — ${u.desc}
         <span class="g-cost">${state.upgrades[u.id] >= u.max ? 'MAX' : '$' + u.cost}</span></div>`).join('')}
       <div class="dim">Press G to close. Buy with keys 1–4 while the garage is open.</div></div>` : '';
+    const shop = state.shopOpen ? `<div class="garage"><h3>🛒 ${state.interior && state.interior.shopId === 'baymart' ? 'BAY MART' : 'SUNSET CORNER STORE'}</h3>
+      ${SHOP_ITEMS.map((item, i) => `
+        <div class="g-row"><b>${i + 1}. ${item.name}</b> — ${item.desc}
+        <span class="g-cost">$${item.cost}</span></div>`).join('')}
+      <div class="dim">Press 1–3 to buy. B to close. E at the green mat to leave the shop.</div></div>` : '';
     hud.innerHTML = `
       <div class="panel tl"><div class="cash">$${p.money}</div>
         <div class="bar"><div class="fill" style="width:${p.hp}%"></div></div>
@@ -220,24 +257,26 @@ export function createRenderer(w3d) {
       <div class="panel bl">${p.inCar
         ? `🚗 ${Math.round(Math.abs(p.speed) * 2.2)} km/h • NOS ${Math.round(p.nos)}% (SPACE) • E exit • ${p.inCar.model}`
         : `🔫 ${wdef.name} ${slot.ammo} / ${slot.reserve} • WASD walk • E enter car • F punch • Click shoot • Q wheel • C cover`}
-        ${state.followers.length ? `<br>👥 Crew: ${crewNames}` : ''}</div>
-      ${wheel}${garage}
+        ${state.followers.length ? `<br>👥 Crew: ${crewNames}` : ''}
+        ${perks ? `<br><span class="perks">${perks}</span>` : ''}
+        ${nearShop}${nearSafe}${inside}</div>
+      ${wheel}${garage}${shop}
       ${state.messageTimer > 0 && state.message ? `<div class="toast">${state.message}</div>` : ''}
       ${state.bannerTimer > 0 && state.banner ? `<div class="banner">${state.banner}</div>` : ''}
       ${screen === SCREEN_TITLE ? `<div class="title">
         <h1>NEON BAY</h1>
-        <p>An open-world crime story — 14 missions, one hurricane, one island city</p>
+        <p>An open-world crime story — 16 missions, one hurricane, one island city</p>
         <div class="card"><b>${extras.saveExists ? '▶ CONTINUE — press ENTER' : '▶ NEW GAME — press ENTER'}</b><br>
         WASD / arrows — walk &amp; drive • SHIFT — run • SPACE — NOS boost<br>
         E — steal / exit car (hold E to rob) • F — punch • Click — shoot • 1–4 / Q — weapons<br>
-        C — take cover • G — garage (near Rook's) • R — radio • M — mute • ESC — pause<br>
-        <span class="dim">14 missions for Rook, Mara, Jax &amp; Reyes. 5-star police, helicopter, roadblocks, SWAT.<br>
-        Street races, garage upgrades, respect, saves — and a Category 5 storm on the clock.</span></div>
+        C — take cover • G — garage (near Rook's) • B — shops • H — safehouse ($100, saves) • R — radio • M — mute • ESC — pause<br>
+        <span class="dim">16 missions for Rook, Mara, Jax &amp; Reyes. 5-star police, helicopter, roadblocks, SWAT.<br>
+        Street races, garage upgrades, shops, safehouses, exploding cars, crew perks, respect, saves — and a Category 5 storm on the clock.</span></div>
         <p class="dim">An original game. No Rockstar names, characters, map or assets.</p></div>` : ''}
       ${screen === SCREEN_PAUSED ? `<div class="title"><h1>PAUSED</h1><p>Press ESC or ENTER to keep playing</p></div>` : ''}
       ${screen === SCREEN_OVER ? `<div class="title"><h1>${extras.overKind === 'busted' ? 'BUSTED!' : 'WASTED!'}</h1>
         <p>The Bay PD took their cut. You woke up at Bay General Hospital.</p>
-        <p>Cash: $${p.money} • Missions done: ${state.stats.missionsDone} / 14 • Respect: ${state.respect}</p>
+        <p>Cash: $${p.money} • Missions done: ${state.stats.missionsDone} / 16 • Respect: ${state.respect}</p>
         <p><b>Press ENTER to get back out there</b></p></div>` : ''}
       ${extras.muted ? '<div class="muted">🔇 MUTED (M)</div>' : ''}`;
     drawMinimap(state);
@@ -268,6 +307,23 @@ export function createRenderer(w3d) {
     for (const v of state.city.lines) {
       mctx.beginPath(); mctx.moveTo(ox(v), 0); mctx.lineTo(ox(v), Hh); mctx.stroke();
       mctx.beginPath(); mctx.moveTo(0, oz(v)); mctx.lineTo(W, oz(v)); mctx.stroke();
+    }
+    // Shops (green $) and safehouses (blue house).
+    for (const s of SHOPS) {
+      mctx.fillStyle = '#7dff8a';
+      mctx.fillRect(ox(s.x) - 4, oz(s.z) - 4, 8, 8);
+      mctx.fillStyle = '#0a2010';
+      mctx.font = 'bold 8px system-ui, sans-serif';
+      mctx.textAlign = 'center';
+      mctx.fillText('$', ox(s.x), oz(s.z) + 3);
+    }
+    for (const s of SAFEHOUSES) {
+      mctx.fillStyle = '#4c9de0';
+      mctx.fillRect(ox(s.x) - 4, oz(s.z) - 4, 8, 8);
+      mctx.fillStyle = '#ffffff';
+      mctx.font = 'bold 8px system-ui, sans-serif';
+      mctx.textAlign = 'center';
+      mctx.fillText('H', ox(s.x), oz(s.z) + 3);
     }
     // Race checkpoints.
     const mission = MISSIONS[state.missionIndex];

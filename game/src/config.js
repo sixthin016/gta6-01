@@ -1,6 +1,7 @@
 // Neon Bay — config.js
 // All tunable constants: world, districts, weapons, garage, radio,
-// police escalation and the hurricane countdown. Numbers only, no logic.
+// police escalation, shops, safehouses, explosions, crew perks and the
+// hurricane countdown. Numbers only, no logic.
 
 export const CONFIG = {
   worldSize: 520,
@@ -20,7 +21,7 @@ export const CONFIG = {
   nosRefill: 7,
   wantedDecay: 0.045,
   hurricaneMinutes: 20,
-  saveKey: 'neon-bay-save-v3',
+  saveKey: 'neon-bay-save-v4',
 };
 
 export const DISTRICTS = [
@@ -68,10 +69,49 @@ export const POLICE = {
 };
 
 export const CREW = [
-  { name: 'Jax',   role: 'Driver & lookout',  color: '#ff9f1c' },
-  { name: 'Mara',  role: 'Hacker & fixer',    color: '#2ec4b6' },
-  { name: 'Reyes', role: 'Muscle & wheelman', color: '#ef476f' },
+  { name: 'Jax',   role: 'Driver — NOS refills 2× faster',  color: '#ff9f1c' },
+  { name: 'Mara',  role: 'Shooter — cover fire on cops',    color: '#2ec4b6' },
+  { name: 'Reyes', role: 'Fixer — your car self-repairs',   color: '#ef476f' },
 ];
+
+// The perk each crew member grants while they follow you.
+export const CREW_PERKS = {
+  Jax:   { icon: '⚡', text: 'NOS refills 2× faster' },
+  Mara:  { icon: '🎯', text: 'Cover fire on nearby cops' },
+  Reyes: { icon: '🔧', text: 'Car slowly self-repairs' },
+};
+
+// Shops: walk up and press B to step inside and buy. Safehouses: walk up
+// and press H to step inside — $100, saves the game and clears wanted.
+export const SHOPS = [
+  { id: 'store',   name: 'Sunset Corner Store', x: -52,  z: 52 },
+  { id: 'baymart', name: 'Bay Mart',            x: 104,  z: 104 },
+];
+
+export const SAFEHOUSES = [
+  { id: 'hideout', name: 'Hideout Safehouse', x: -156, z: 156 },
+  { id: 'villa',   name: 'Palm Villa Safehouse', x: 0,  z: 208 },
+];
+
+export const SHOP_ITEMS = [
+  { id: 'ammo',  name: 'Ammo box',   desc: '+60 reserve ammo, all guns', cost: 50 },
+  { id: 'armor', name: 'Body armor', desc: '+50 HP right now',           cost: 80 },
+  { id: 'snack', name: 'Snack',      desc: '+25 HP right now',           cost: 30 },
+];
+
+export const SAFEHOUSE_COST = 100;
+export const SHOP_RADIUS = 9;
+export const SAFEHOUSE_RADIUS = 9;
+
+// Cars: smoke below this HP, explode at 0. Explosions hurt everyone near.
+export const EXPLOSION = {
+  smokeHp: 35,
+  radius: 12,
+  playerDamage: 45,
+  otherDamage: 100,
+  carDamage: 60,
+  wanted: 2,
+};
 
 export const PALETTE = {
   skyTop: 0x2b4a8f,

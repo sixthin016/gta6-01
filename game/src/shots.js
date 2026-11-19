@@ -10,7 +10,7 @@ const STEP = 1 / 60;
 const IDLE_SECONDS = 6;
 const DRIVE_SECONDS = 15;
 const CHASE_SECONDS = 3;
-const MISSION_SECONDS = 7;
+const MISSION_SECONDS = 9;
 
 const IDLE = { ax: 0, ay: 0, run: false, nos: false, enter: false, enterHeld: false, punch: false, click: false, mouseX: 0, mouseZ: 0, camYaw: 0 };
 
@@ -163,29 +163,37 @@ export function stageShot(name, game) {
     return { screen: 'play' };
   }
   if (name === 'mission') {
-    // On foot at the Water Tower, SMG out, taking cover in a shootout.
-    game.state.missionIndex = 5;
-    game.startMission(5);
-    p.x = 188; p.z = -188;
+    // Last Stand: hold the Hideout safehouse against a SWAT wave at five
+    // stars — player + full crew (Jax, Mara, Reyes) on foot, SMG out,
+    // taking cover while Mara lays down cover fire.
+    game.state.missionIndex = 14;
+    game.startMission(14);
+    game.addFollower('Jax', 0xff9f1c);
+    game.addFollower('Mara', 0x2ec4b6);
+    game.addFollower('Reyes', 0xef476f);
+    p.x = -148; p.z = 148;
     p.weapon = 'smg';
     p.cover = true;
-    game.state.respect = 55;
+    p.invulnerable = 999; // staging only: SWAT must not bust the player mid-shot
+    game.state.respect = 68;
+    game.state.hurricaneLeft = 9 * 60 + 30;
     for (let i = 0; i < MISSION_SECONDS / STEP; i += 1) {
-      walkAutopilot(game, 196, -196);
+      walkAutopilot(game, -156, 156);
     }
-    // Fire a burst at the nearest lookout so the tracer reads in the frame.
-    const t = game.state.targets[0];
-    if (t) {
-      game.step(STEP, { ...IDLE, click: true, mouseX: t.x, mouseZ: t.z });
+    // Fire a burst at the nearest SWAT cop so the tracer reads in the frame.
+    const cop = game.state.cops[0];
+    if (cop) {
+      game.step(STEP, { ...IDLE, click: true, mouseX: cop.x, mouseZ: cop.z });
       for (let i = 0; i < 8; i += 1) game.step(STEP, IDLE);
-      game.step(STEP, { ...IDLE, click: true, mouseX: t.x, mouseZ: t.z });
+      game.step(STEP, { ...IDLE, click: true, mouseX: cop.x, mouseZ: cop.z });
     }
     return { screen: 'play' };
   }
   // Title screen over a living city: stand on the plaza road facing east
   // toward the beach while traffic rolls, then the menu sits on top.
+  // The storm is part-way in, so the streets are wet and the neon glows.
   p.x = -52; p.z = 52; p.angle = 0;
-  game.state.hurricaneLeft = 19 * 60 + 12;
+  game.state.hurricaneLeft = 13 * 60;
   for (let i = 0; i < IDLE_SECONDS / STEP; i += 1) {
     game.step(STEP, IDLE);
   }

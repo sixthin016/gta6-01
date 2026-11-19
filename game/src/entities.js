@@ -2,6 +2,8 @@
 // The people and the cars: factories, mesh builders and movement AI.
 // Positions are x/z on the ground; angle is the heading (0 = +x).
 // Meshes are built here; the simulation in world.js owns the state.
+// Cars carry damage state: below EXPLOSION.smokeHp they smoke, at 0 HP
+// they explode (world.js turns them into wrecks).
 
 import { CONFIG } from './config.js';
 import { nearestIntersection, onRoad } from './city.js';
@@ -44,6 +46,7 @@ export function createCar(rng, x, z, angle, opts = {}) {
     turnCooldown: 0, bumpTimer: 0, ramTimer: 0,
     targetSpeed: opts.speed || 9, mission: opts.mission ?? -1, id: opts.id || 0,
     topSpeed: CONFIG.carMaxSpeed, grip: 1, nosPower: 1, hull: 100,
+    smoking: false, exploded: false, lastHitByPlayer: false,
   };
 }
 
@@ -75,6 +78,11 @@ export function createHeli(x, z) {
 
 export function createCrewFollower(name, color, x, z) {
   return { kind: 'crew', name, color, x, z, angle: 0, radius: 1, walkPhase: 0, speed: 8 };
+}
+
+/** A short-lived explosion: fireball mesh, age and radius for the sim. */
+export function createExplosion(x, z) {
+  return { x, z, life: 0.7, maxLife: 0.7, radius: 12, mesh: null };
 }
 
 export function randomRoadSpot(rng, lines) {

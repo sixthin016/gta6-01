@@ -2,6 +2,7 @@
 // Keyboard and mouse input. One job: keys held, one-shot actions, and the
 // mouse (aim + drag to orbit the chase camera). Presses are edge-triggered
 // and consumed once, so E to enter a car fires once per tap.
+// B opens a shop (or closes its panel), H steps into a safehouse.
 
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
@@ -16,6 +17,8 @@ export const ACTION_WEAPON_1 = 512;
 export const ACTION_WEAPON_2 = 1024;
 export const ACTION_WEAPON_3 = 2048;
 export const ACTION_WEAPON_4 = 4096;
+export const ACTION_SHOP = 8192;
+export const ACTION_SAFEHOUSE = 16384;
 
 const KEY_ACTIONS = {
   enter: ACTION_CONFIRM,
@@ -29,6 +32,8 @@ const KEY_ACTIONS = {
   c: ACTION_COVER,
   g: ACTION_GARAGE,
   r: ACTION_RADIO,
+  b: ACTION_SHOP,
+  h: ACTION_SAFEHOUSE,
   1: ACTION_WEAPON_1,
   2: ACTION_WEAPON_2,
   3: ACTION_WEAPON_3,

@@ -20,6 +20,14 @@ export function makeRng(seed) {
     int(min, max) { return Math.floor(this.range(min, max + 1)); },
     pick(arr) { return arr[Math.floor(next() * arr.length)]; },
     chance(p) { return next() < p; },
+    shuffle(arr) {
+      const out = arr.slice();
+      for (let i = out.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(next() * (i + 1));
+        const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+      }
+      return out;
+    },
     roadPoint(spacing, half) {
       const n = Math.floor(half / spacing);
       const i = this.int(-n, n);

@@ -1,16 +1,18 @@
-// Neon Bay — the story: 14 missions in four acts, as the Category 5
+// Neon Bay — the story: 16 missions in four acts, as the Category 5
 // hurricane bears down on the island. Each mission has an intro line, a
 // live objective, a target on the map, and a cash reward. The game loop
 // drives the state machine; this file only describes what each mission is
 // and when it counts as done.
-// Types: goto, steal, lose, rob, wait, multi, race, shoot, survive.
+// Types: goto, steal, lose, rob, wait, multi, race, shoot, survive, defend.
+// The two round-4 missions use the new systems: 13 robs a shop, 14 defends
+// a safehouse against a SWAT wave.
 
 import { PLACES } from './city.js';
 
 export const STORY_INTRO = [
   'ROOK: "Neon Bay, kid. Sun, sand, and everybody owes somebody."',
   'ROOK: "A hurricane is coming in 20 minutes. We work fast or we drown."',
-  'ROOK: "Fourteen jobs. Do them all and the Bay is yours."',
+  'ROOK: "Sixteen jobs. Do them all and the Bay is yours."',
 ];
 
 export const MISSIONS = [
@@ -71,7 +73,15 @@ export const MISSIONS = [
       { x: 96, z: 164, name: 'Viper 3' }, { x: 112, z: 164, name: 'Viper 4' },
       { x: 104, z: 156, name: 'Viper himself' },
     ] },
-  { id: 13, title: 'Neon Dawn', type: 'wait', place: 'beach', reward: 1500,
+  { id: 13, title: 'Corner Store Caper', type: 'rob', place: 'store', reward: 800,
+    brief: 'ROOK: "One last easy score before the storm — rob the Sunset Corner Store, then vanish to the hideout. Five stars if you\'re sloppy."',
+    objective: 'Rob the Corner Store (hold E), then reach the hideout',
+    after: 'hideout' },
+  { id: 14, title: 'Last Stand', type: 'defend', place: 'hideout', reward: 1000,
+    brief: 'REYES: "They found the hideout! Five stars, SWAT at the door — hold the safehouse for 45 seconds. Mara\'s cover fire and my repairs will keep you alive."',
+    objective: 'Hold the Hideout safehouse for 45 seconds against SWAT',
+    startWanted: 5, surviveSeconds: 45 },
+  { id: 15, title: 'Neon Dawn', type: 'wait', place: 'beach', reward: 1500,
     brief: 'ROOK: "The storm breaks at dawn. Meet me on Sunset Beach — the Bay is ours now."',
     objective: 'Wait on Sunset Beach as the storm breaks',
     waitSeconds: 5 },
@@ -88,7 +98,7 @@ export function missionObjective(index) {
 }
 
 export function missionBrief(index) {
-  if (index >= MISSIONS.length) return 'ROOK: "That\'s all fourteen jobs, kid. The Bay is yours now."';
+  if (index >= MISSIONS.length) return 'ROOK: "That\'s all sixteen jobs, kid. The Bay is yours now."';
   return MISSIONS[index].brief;
 }
 

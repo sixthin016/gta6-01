@@ -1,17 +1,24 @@
 // Neon Bay — world.js
 // Two jobs: build the three.js scene (golden-hour sky, city, beach, water,
-// neon, rain, helicopter) and run the simulation (driving, traffic, police
-// escalation, wanted stars, weapons, NOS, garage, crew, respect, the
-// hurricane countdown and all fourteen missions). Meshes live on the
-// entities so render.js can sync them every frame.
+// neon, rain, helicopter, shop/safehouse interiors, wet streets) and run
+// the simulation (driving, traffic, police escalation, wanted stars,
+// weapons, NOS, garage, crew + crew perks, respect, the hurricane
+// countdown, shops, safehouses, exploding cars and all sixteen missions).
+// Meshes live on the entities so render.js can sync them every frame.
 
 import * as THREE from 'three';
-import { CONFIG, POLICE, GARAGE_UPGRADES } from './config.js';
-import { generateCity, collideCircle, resolveCircle, nearestIntersection, PLACES, RACE_RING } from './city.js';
+import {
+  CONFIG, POLICE, GARAGE_UPGRADES, SHOPS, SAFEHOUSES, SHOP_ITEMS,
+  SAFEHOUSE_COST, SHOP_RADIUS, SAFEHOUSE_RADIUS, EXPLOSION,
+} from './config.js';
+import {
+  generateCity, collideCircle, resolveCircle, nearestIntersection,
+  PLACES, RACE_RING, INTERIORS,
+} from './city.js';
 import { makeRng } from './random.js';
 import {
   createPlayer, createPed, createCar, createPoliceCar, createSwatVan, createCop,
-  createTarget, createHeli, createCrewFollower,
+  createTarget, createHeli, createCrewFollower, createExplosion,
   driveTraffic, chaseSteer, walkPed, randomRoadSpot,
 } from './entities.js';
 import { MISSIONS, missionTarget, missionBrief } from './missions.js';
@@ -23,6 +30,7 @@ export const EVENT_WASTED = 4;
 export const EVENT_CRIME = 8;
 export const EVENT_SHOT = 16;
 export const EVENT_ENTER_CAR = 32;
+export const EVENT_EXPLOSION = 64;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
@@ -166,6 +174,74 @@ function neonTexture(text, colorHex) {
   return t;
 }
 
+// A shop / safehouse interior: a simple lit room off the city grid, with a
+// counter or a bed, a warm lamp and a glowing door mat. The door sits on
+// the south wall; E at the mat steps back outside.
+function makeInteriorRoom(room, kind) {
+  const g = new THREE.Group();
+  const floorColor = kind === 'shop' ? 0x7a5a38 : 0x4a3f5e;
+  const wallColor = kind === 'shop' ? 0x9a8a72 : 0x6a5a7a;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(room.w, room.d),
+    new THREE.MeshLambertMaterial({ color: floorColor }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(room.x, 0.02, room.z);
+  floor.receiveShadow = true;
+  g.add(floor);
+  const wallMat = new THREE.MeshLambertMaterial({ color: wallColor });
+  const HGT = 4.2, TH = 0.5;
+  function wall(w, d, x, z) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, HGT, d), wallMat);
+    m.position.set(x, HGT / 2, z);
+    m.castShadow = true;
+    g.add(m);
+  }
+  wall(room.w, TH, room.x, room.z - room.d / 2); // north
+  wall(TH, room.d, room.x - room.w / 2, room.z); // west
+  wall(TH, room.d, room.x + room.w / 2, room.z); // east
+  const side = (room.w - 3) / 2; // south wall with a 3-wide door gap
+  wall(side, TH, room.x - room.w / 2 + side / 2, room.z + room.d / 2);
+  wall(side, TH, room.x + room.w / 2 - side / 2, room.z + room.d / 2);
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.2),
+    new THREE.MeshBasicMaterial({ color: 0x7dff8a, transparent: true, opacity: 0.7 }));
+  door.rotation.x = -Math.PI / 2;
+  door.position.set(room.x, 0.06, room.z + room.d / 2 - 1);
+  g.add(door);
+  if (kind === 'shop') {
+    const counter = box(7, 1.1, 1.4, 0x5a3a22);
+    counter.position.set(room.x, 0.55, room.z - room.d / 2 + 2);
+    g.add(counter);
+    const shelf = box(4, 2.2, 1, 0x3a2a1a);
+    shelf.position.set(room.x - room.w / 2 + 1.5, 1.1, room.z - 1);
+    g.add(shelf);
+    const shelf2 = box(4, 2.2, 1, 0x3a2a1a);
+    shelf2.position.set(room.x + room.w / 2 - 1.5, 1.1, room.z - 1);
+    g.add(shelf2);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5),
+      new THREE.MeshBasicMaterial({ map: neonTexture('SHOP', '#7dff8a'), transparent: true }));
+    sign.position.set(room.x, 3.4, room.z - room.d / 2 + 0.4);
+    g.add(sign);
+  } else {
+    const bed = box(2.2, 0.6, 4.2, 0x2ec4b6);
+    bed.position.set(room.x - room.w / 2 + 2.5, 0.3, room.z - 2);
+    g.add(bed);
+    const table = box(2, 0.9, 1.2, 0x5a3a22);
+    table.position.set(room.x + room.w / 2 - 3, 0.45, room.z - room.d / 2 + 2);
+    g.add(table);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
+    lamp.position.set(room.x + room.w / 2 - 3, 1.4, room.z - room.d / 2 + 2);
+    g.add(lamp);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5),
+      new THREE.MeshBasicMaterial({ map: neonTexture('SAFE', '#ffd166'), transparent: true }));
+    sign.position.set(room.x, 3.4, room.z - room.d / 2 + 0.4);
+    g.add(sign);
+  }
+  const light = new THREE.PointLight(0xffc37a, 80, 30, 1.6);
+  light.position.set(room.x, 3.4, room.z);
+  g.add(light);
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 // Scene
 // ---------------------------------------------------------------------------
@@ -266,7 +342,9 @@ export function createWorld3D(seed) {
       scene.add(win);
     }
   }
-  // Neon signs: glowing canvas textures on downtown faces.
+  // Neon signs: glowing canvas textures on downtown faces, plus an
+  // additive glow copy that fades in with the rain (wet neon reflections).
+  const signGlows = [];
   for (const s of city.signs) {
     const colorCss = `#${s.color.toString(16).padStart(6, '0')}`;
     const tex = neonTexture(s.text, colorCss);
@@ -274,6 +352,14 @@ export function createWorld3D(seed) {
       new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
     sign.position.set(s.x, 7, s.z);
     scene.add(sign);
+    const glow = sign.clone();
+    glow.material = sign.material.clone();
+    glow.material.blending = THREE.AdditiveBlending;
+    glow.material.opacity = 0;
+    glow.scale.set(1.18, 1.18, 1);
+    glow.position.z -= 0.15;
+    scene.add(glow);
+    signGlows.push(glow);
   }
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a5a33 });
   const leafMat = new THREE.MeshLambertMaterial({ color: 0x2f9e4f });
@@ -329,7 +415,44 @@ export function createWorld3D(seed) {
   const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xbfd8ff, size: 0.35, transparent: true, opacity: 0 }));
   scene.add(rain);
 
-  return { scene, camera, renderer, city, sun, hemi, skyMat, waterMat, beacon, marker, ring, rain, palmTops };
+  // Wet streets: once the hurricane rain starts, a glossy overlay sheens
+  // the ground and reflective puddles appear at intersections, while the
+  // neon signs glow harder. Golden hour stays dry — opacity is 0 until
+  // the storm builds (render.js drives these from the storm level).
+  const wetMat = new THREE.MeshPhongMaterial({
+    color: 0x14273d, specular: 0x8fb4ff, shininess: 160,
+    transparent: true, opacity: 0, depthWrite: false,
+  });
+  const wetOverlay = new THREE.Mesh(new THREE.PlaneGeometry(H * 2, H * 2), wetMat);
+  wetOverlay.rotation.x = -Math.PI / 2;
+  wetOverlay.position.y = 0.045;
+  scene.add(wetOverlay);
+  const puddles = [];
+  for (let i = 0; i < 22; i += 1) {
+    const px = city.lines[Math.floor(rng.next() * city.lines.length)];
+    const pz = city.lines[Math.floor(rng.next() * city.lines.length)];
+    if (px > 180) continue; // keep puddles off the beach
+    const r = rng.range(2.5, 5.5);
+    const puddle = new THREE.Mesh(new THREE.CircleGeometry(r, 20),
+      new THREE.MeshPhongMaterial({
+        color: 0x1a2f4a, specular: 0xbdd8ff, shininess: 200,
+        transparent: true, opacity: 0, depthWrite: false,
+      }));
+    puddle.rotation.x = -Math.PI / 2;
+    puddle.position.set(px + rng.range(-2, 2), 0.06, pz + rng.range(-2, 2));
+    scene.add(puddle);
+    puddles.push(puddle);
+  }
+
+  // Shop + safehouse interiors, off the city grid.
+  scene.add(makeInteriorRoom(INTERIORS.shop, 'shop'));
+  scene.add(makeInteriorRoom(INTERIORS.safehouse, 'safehouse'));
+  const rooms = {
+    shop: { ...INTERIORS.shop, door: { x: INTERIORS.shop.x, z: INTERIORS.shop.z + INTERIORS.shop.d / 2 - 1 } },
+    safehouse: { ...INTERIORS.safehouse, door: { x: INTERIORS.safehouse.x, z: INTERIORS.safehouse.z + INTERIORS.safehouse.d / 2 - 1 } },
+  };
+
+  return { scene, camera, renderer, city, sun, hemi, skyMat, waterMat, beacon, marker, ring, rain, palmTops, wetOverlay, puddles, signGlows, rooms };
 }
 
 // ---------------------------------------------------------------------------
@@ -357,10 +480,15 @@ export function createGame(w3d, seed) {
     stats: { carsStolen: 0, missionsDone: 0, arrests: 0, racesWon: 0 },
     started: false, playerMesh: null,
     tracers: [],
+    // Round 4: shops, safehouses, interiors, explosions, crew perks.
+    shopOpen: false, interior: null, saveRequested: false,
+    nearShop: null, nearSafehouse: null,
+    explosions: [], maraFireTimer: 0, explosionEvent: false,
   };
 
   const stormLevel = () => clamp(1 - state.hurricaneLeft / (CONFIG.hurricaneMinutes * 60), 0, 1);
   const blockers = () => state.roadblocks.map((r) => ({ x: r.x, z: r.z, r: 2.6 }));
+  const hasFollower = (name) => state.followers.some((f) => f.name === name);
 
   function say(text, seconds) { state.message = text; state.messageTimer = seconds || 4; }
   function banner(text) { state.banner = text; state.bannerTimer = 7; }
@@ -382,11 +510,167 @@ export function createGame(w3d, seed) {
     };
   }
 
+  // --- Shops & safehouses -------------------------------------------------
+  function nearestShop(x, z) {
+    for (const s of SHOPS) if (dist(x, z, s.x, s.z) < SHOP_RADIUS) return s;
+    return null;
+  }
+  function nearestSafehouse(x, z) {
+    for (const s of SAFEHOUSES) if (dist(x, z, s.x, s.z) < SAFEHOUSE_RADIUS) return s;
+    return null;
+  }
+
+  function enterShop() {
+    const p = state.player;
+    if (state.interior || p.inCar || !state.nearShop) return false;
+    const room = w3d.rooms.shop;
+    state.interior = { kind: 'shop', shopId: state.nearShop.id, returnX: p.x, returnZ: p.z };
+    p.x = room.x; p.z = room.z - 2; p.angle = -Math.PI / 2; p.speed = 0;
+    state.shopOpen = true;
+    say(`${state.nearShop.name} — press 1-3 to buy, B to close, E at the green mat to leave.`, 5);
+    return true;
+  }
+
+  function enterSafehouse() {
+    const p = state.player;
+    if (state.interior || p.inCar || !state.nearSafehouse) return false;
+    if (p.money < SAFEHOUSE_COST) {
+      say(`Safehouse costs $${SAFEHOUSE_COST} — you have $${p.money}.`, 4);
+      return false;
+    }
+    p.money -= SAFEHOUSE_COST;
+    p.wanted = 0;
+    p.hp = Math.min(100, p.hp + 25);
+    state.saveRequested = true;
+    const room = w3d.rooms.safehouse;
+    state.interior = { kind: 'safehouse', safehouseId: state.nearSafehouse.id, returnX: p.x, returnZ: p.z };
+    p.x = room.x; p.z = room.z - 2; p.angle = -Math.PI / 2; p.speed = 0;
+    say(`Safehouse — $${SAFEHOUSE_COST}. Progress saved, wanted cleared, +25 HP. E at the green mat to leave.`, 6);
+    return true;
+  }
+
+  function exitInterior() {
+    const p = state.player;
+    if (!state.interior) return false;
+    p.x = state.interior.returnX;
+    p.z = state.interior.returnZ;
+    p.speed = 0;
+    state.interior = null;
+    state.shopOpen = false;
+    say('Back on the street.', 3);
+    return true;
+  }
+
+  function buyShopItem(id) {
+    const p = state.player;
+    if (!state.shopOpen) return false;
+    const item = SHOP_ITEMS.find((i) => i.id === id);
+    if (!item || p.money < item.cost) {
+      if (item) say(`Not enough cash for ${item.name} ($${item.cost}).`, 3);
+      return false;
+    }
+    p.money -= item.cost;
+    if (id === 'ammo') {
+      for (const w of Object.values(p.weapons)) w.reserve = Math.min(999, w.reserve + 60);
+    } else if (id === 'armor') {
+      p.hp = Math.min(100, p.hp + 50);
+    } else if (id === 'snack') {
+      p.hp = Math.min(100, p.hp + 25);
+    }
+    say(`Bought ${item.name} for $${item.cost}. ${item.desc}`, 3);
+    return true;
+  }
+
+  // --- Exploding cars ------------------------------------------------------
+  function startSmoking(car) {
+    if (car.smoking || !car.mesh) return;
+    car.smoking = true;
+    const smoke = new THREE.Mesh(
+      new THREE.SphereGeometry(1.1, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0x2a2a2a, transparent: true, opacity: 0.7 }),
+    );
+    smoke.position.set(0, 1.8, 0);
+    smoke.name = 'smoke';
+    car.mesh.add(smoke);
+  }
+
+  function explodeCar(car) {
+    if (car.exploded) return;
+    car.exploded = true;
+    car.hp = 0;
+    car.speed = 0;
+    if (car.mesh) {
+      const smoke = car.mesh.getObjectByName('smoke');
+      if (smoke) car.mesh.remove(smoke);
+      // The wreck: a blackened shell that can never drive again.
+      car.mesh.traverse((o) => {
+        if (o.isMesh && o.material && o.material.color) o.material.color.setHex(0x161616);
+      });
+    }
+    car.kind = 'wreck';
+    const ex = createExplosion(car.x, car.z);
+    const fireball = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.95 }),
+    );
+    fireball.position.set(car.x, 1.5, car.z);
+    scene.add(fireball);
+    ex.mesh = fireball;
+    state.explosions.push(ex);
+    state.explosionEvent = true;
+    const p = state.player;
+    if (p.inCar === car) {
+      p.inCar = null;
+      p.x = car.x + 4; p.z = car.z + 4;
+      p.speed = 0;
+      say('Your car blew up! You bail out, singed.', 4);
+    }
+    const pd = dist(p.x, p.z, car.x, car.z);
+    if (pd < EXPLOSION.radius) {
+      p.hp -= pd < 6 ? EXPLOSION.playerDamage : Math.floor(EXPLOSION.playerDamage / 2);
+    }
+    for (const ped of state.peds) {
+      if (ped.hp > 0 && dist(ped.x, ped.z, car.x, car.z) < EXPLOSION.radius) ped.hp = 0;
+    }
+    for (const cop of [...state.cops]) {
+      if (dist(cop.x, cop.z, car.x, car.z) < EXPLOSION.radius) {
+        cop.hp = 0;
+        if (cop.mesh) scene.remove(cop.mesh);
+        state.cops = state.cops.filter((c) => c !== cop);
+      }
+    }
+    for (const t of [...state.targets]) {
+      if (t.hp > 0 && dist(t.x, t.z, car.x, car.z) < EXPLOSION.radius) {
+        t.hp = 0;
+        if (t.mesh) scene.remove(t.mesh);
+        state.targets = state.targets.filter((x) => x !== t);
+      }
+    }
+    for (const other of [...state.cars, ...state.policeCars, ...state.swatVans]) {
+      if (other !== car && !other.exploded && dist(other.x, other.z, car.x, car.z) < EXPLOSION.radius) {
+        other.hp -= EXPLOSION.carDamage;
+        other.lastHitByPlayer = car.lastHitByPlayer;
+      }
+    }
+    if (car.lastHitByPlayer && addWanted(EXPLOSION.wanted)) {
+      say('That explosion drew the whole Bay PD!', 4);
+    }
+  }
+
+  function checkExplosions() {
+    for (const car of [...state.cars, ...state.policeCars, ...state.swatVans]) {
+      if (car.hp <= 0 && !car.exploded) explodeCar(car);
+      else if (car.hp <= EXPLOSION.smokeHp && !car.smoking && !car.exploded) startSmoking(car);
+    }
+  }
+
   function spawnAll() {
     for (const c of [...state.cars, ...state.policeCars, ...state.swatVans]) if (c.mesh) scene.remove(c.mesh);
     for (const p of [...state.peds, ...state.cops, ...state.targets, ...state.followers]) if (p.mesh) scene.remove(p.mesh);
     if (state.heli && state.heli.mesh) scene.remove(state.heli.mesh);
     if (state.playerMesh) scene.remove(state.playerMesh);
+    for (const ex of state.explosions) if (ex.mesh) scene.remove(ex.mesh);
+    state.explosions = [];
     state.cars = []; state.peds = []; state.cops = []; state.policeCars = []; state.swatVans = [];
     state.targets = []; state.followers = []; state.roadblocks = []; state.heli = null;
     for (const spot of city.parked) {
@@ -457,16 +741,21 @@ export function createGame(w3d, seed) {
     state.surviveLeft = 0;
     state.raceCheckpoint = 0;
     if (state.missionIndex < MISSIONS.length) {
-      banner(missionBrief(state.missionIndex));
-      say(`Mission complete! +$${mission.reward} — ${MISSIONS[state.missionIndex].title} unlocked.`, 5);
+      // Start the next mission properly (timer, survive clock, wanted,
+      // targets) — without this a survive/defend mission would complete
+      // instantly on arrival with surviveLeft still 0.
+      const next = state.missionIndex;
+      startMission(next);
+      say(`Mission complete! +$${mission.reward} — ${MISSIONS[next].title} unlocked.`, 5);
     } else {
-      banner('ROOK: "That\'s all fourteen jobs, kid. The Bay is yours now."');
+      banner('ROOK: "That\'s all sixteen jobs, kid. The Bay is yours now."');
       say(`All missions done! +$${mission.reward}. Free roam — Neon Bay is yours.`, 6);
     }
     return EVENT_MISSION_DONE;
   }
 
   function addFollower(name, color) {
+    if (state.followers.some((f) => f.name === name)) return;
     const p = state.player;
     const f = createCrewFollower(name, color, p.x + 3, p.z + 3);
     f.mesh = makePersonMesh(color, 0xf2c89b);
@@ -505,6 +794,7 @@ export function createGame(w3d, seed) {
   function nearestCar(x, z, maxDist) {
     let best = null, bestDist = maxDist;
     for (const car of [...state.cars, ...state.policeCars, ...state.swatVans]) {
+      if (car.kind === 'wreck' || car.exploded) continue;
       const d = dist(x, z, car.x, car.z);
       if (d < bestDist) { bestDist = d; best = car; }
     }
@@ -531,7 +821,9 @@ export function createGame(w3d, seed) {
     for (const ped of state.peds) if (ped.hp > 0) targets.push({ e: ped, r: 1.4, kind: 'ped' });
     for (const cop of state.cops) targets.push({ e: cop, r: 1.4, kind: 'cop' });
     for (const t of state.targets) if (t.hp > 0) targets.push({ e: t, r: 1.4, kind: 'target' });
-    for (const car of [...state.cars, ...state.policeCars, ...state.swatVans]) targets.push({ e: car, r: 2.4, kind: 'car' });
+    for (const car of [...state.cars, ...state.policeCars, ...state.swatVans]) {
+      if (!car.exploded) targets.push({ e: car, r: 2.4, kind: 'car' });
+    }
     for (const t of targets) {
       const relX = t.e.x - fromX, relZ = t.e.z - fromZ;
       const along = relX * dx + relZ * dz;
@@ -568,6 +860,7 @@ export function createGame(w3d, seed) {
     } else if (hitCar) {
       hitCar.hp -= dmg;
       hitCar.damage += dmg;
+      if (!byPolice) hitCar.lastHitByPlayer = true;
       if (!byPolice && hitCar.kind !== 'police' && hitCar.kind !== 'swat' && addWanted(1)) event |= EVENT_CRIME;
     }
     if (byPolice) {
@@ -632,7 +925,8 @@ export function createGame(w3d, seed) {
       }
     } else if (m.type === 'shoot') {
       if (state.targets.length === 0) return completeMission();
-    } else if (m.type === 'survive') {
+    } else if (m.type === 'survive' || m.type === 'defend') {
+      // Survive holds a place; defend holds the safehouse against a SWAT wave.
       if (atTarget) {
         state.surviveLeft -= dt;
         if (state.surviveLeft <= 0) return completeMission();
@@ -663,7 +957,8 @@ export function createGame(w3d, seed) {
     const wanted = p.wanted;
     const tier = POLICE[wanted] || { cars: 0, heli: false, roadblock: false, swat: false };
     const wantCars = tier.cars;
-    const wantCops = wanted >= 2 ? Math.min(wanted - 1, 3) : 0;
+    const defending = MISSIONS[state.missionIndex] && MISSIONS[state.missionIndex].type === 'defend';
+    const wantCops = defending ? 4 : (wanted >= 2 ? Math.min(wanted - 1, 3) : 0);
     while (state.policeCars.length < wantCars) {
       const angle = rng.next() * Math.PI * 2;
       const sx = clamp(p.x + Math.cos(angle) * 60, -220, 180);
@@ -680,12 +975,12 @@ export function createGame(w3d, seed) {
     }
     while (state.cops.length < wantCops) {
       const angle = rng.next() * Math.PI * 2;
-      const cop = createCop(rng, clamp(p.x + Math.cos(angle) * 30, -230, 230), clamp(p.z + Math.sin(angle) * 30, -230, 230));
+      const cop = createCop(rng, clamp(p.x + Math.cos(angle) * 30, -230, 230), clamp(p.z + Math.sin(angle) * 30, -230, 230), defending);
       cop.mesh = makePersonMesh(0x22384f, 0xd9a066, true);
       scene.add(cop.mesh);
       state.cops.push(cop);
     }
-    while (state.cops.length > wantCops) {
+    while (state.cops.length > wantCops + (state.swatVans.length > 0 ? 2 : 0)) {
       const cop = state.cops.pop();
       if (cop.mesh) scene.remove(cop.mesh);
     }
@@ -791,12 +1086,37 @@ export function createGame(w3d, seed) {
     p.reloadTimer = Math.max(0, p.reloadTimer - dt);
     p.invulnerable = Math.max(0, p.invulnerable - dt);
 
+    // Inside a shop / safehouse: walk the room, E at the green mat to leave.
+    if (state.interior) {
+      const room = INTERIORS[state.interior.kind];
+      const len = Math.hypot(input.ax, input.ay) || 1;
+      const speed = (input.run ? CONFIG.runSpeed : CONFIG.walkSpeed);
+      const mx = (input.ax / len) * speed * (input.ax || input.ay ? 1 : 0);
+      const mz = (input.ay / len) * speed * (input.ax || input.ay ? 1 : 0);
+      const yaw = input.camYaw || 0;
+      const vx = mx * Math.cos(yaw) - mz * Math.sin(yaw);
+      const vz = mx * Math.sin(yaw) + mz * Math.cos(yaw);
+      if (input.ax || input.ay) {
+        p.angle = Math.atan2(vz, vx);
+        p.walkPhase += dt * (input.run ? 13 : 9);
+      }
+      p.x = clamp(p.x + vx * dt, room.x - room.w / 2 + 1.5, room.x + room.w / 2 - 1.5);
+      p.z = clamp(p.z + vz * dt, room.z - room.d / 2 + 1.5, room.z + room.d / 2 - 1.5);
+      p.speed = Math.hypot(vx, vz);
+      const door = w3d.rooms[state.interior.kind].door;
+      if (input.enter && dist(p.x, p.z, door.x, door.z) < 3) exitInterior();
+      return EVENT_NONE;
+    }
+
     if (p.inCar) {
       const car = p.inCar;
       const perf = carPerf(car);
       const boosting = input.nos && p.nos > 0;
       if (boosting) p.nos = Math.max(0, p.nos - CONFIG.nosDrain * dt);
-      else p.nos = Math.min(CONFIG.nosCapacity, p.nos + CONFIG.nosRefill * dt);
+      // Jax (driver) perk: NOS refills twice as fast while he follows.
+      else p.nos = Math.min(CONFIG.nosCapacity, p.nos + CONFIG.nosRefill * (hasFollower('Jax') ? 2 : 1) * dt);
+      // Reyes (fixer) perk: the car slowly self-repairs while he follows.
+      if (hasFollower('Reyes') && car.hp > 0) car.hp = Math.min(perf.hull, car.hp + 2.5 * dt);
       if (input.ay < 0) car.speed += CONFIG.carAccel * dt;
       else if (input.ay > 0) {
         if (car.speed > 2) car.speed -= CONFIG.carBrake * dt;
@@ -830,7 +1150,7 @@ export function createGame(w3d, seed) {
         }
       }
       for (const other of [...state.cars, ...state.policeCars, ...state.swatVans]) {
-        if (other === car) continue;
+        if (other === car || other.exploded) continue;
         const d = dist(car.x, car.z, other.x, other.z);
         if (d < 4.2 && d > 0.01) {
           const push = (4.2 - d) / 2;
@@ -838,8 +1158,12 @@ export function createGame(w3d, seed) {
           car.x += ux * push; car.z += uz * push;
           if (other.kind !== 'parked') { other.x -= ux * push; other.z -= uz * push; }
           if (Math.abs(car.speed) > 8 && car.bumpTimer <= 0) {
+            // A hard ram at speed wrecks the other car — fast enough and it blows.
+            const hard = Math.abs(car.speed) > 20;
             car.speed *= 0.6;
-            car.hp -= 5; other.hp -= 5;
+            car.hp -= hard ? 10 : 5;
+            other.hp -= hard ? 30 : 5;
+            other.lastHitByPlayer = true;
             car.bumpTimer = 0.5;
           }
         }
@@ -966,6 +1290,28 @@ export function createGame(w3d, seed) {
     }
   }
 
+  // Mara (shooter) perk: cover fire at the nearest cop or target in range.
+  function stepCrewAbilities(dt) {
+    if (!hasFollower('Mara')) return;
+    state.maraFireTimer -= dt;
+    if (state.maraFireTimer > 0) return;
+    const mara = state.followers.find((f) => f.name === 'Mara');
+    if (!mara) return;
+    let best = null, bestD = 34;
+    for (const cop of state.cops) {
+      const d = dist(mara.x, mara.z, cop.x, cop.z);
+      if (d < bestD) { bestD = d; best = cop; }
+    }
+    for (const t of state.targets) {
+      if (t.hp <= 0) continue;
+      const d = dist(mara.x, mara.z, t.x, t.z);
+      if (d < bestD) { bestD = d; best = t; }
+    }
+    if (!best) return;
+    state.maraFireTimer = 1.4;
+    fireBullet(mara.x, mara.z, best.x, best.z, false);
+  }
+
   function step(dt, input) {
     state.time += dt;
     state.clockMinutes += dt * 0.5;
@@ -977,6 +1323,21 @@ export function createGame(w3d, seed) {
       if (t.life <= 0) { scene.remove(t.line); }
     }
     state.tracers = state.tracers.filter((t) => t.life > 0);
+    for (const ex of state.explosions) {
+      ex.life -= dt;
+      if (ex.mesh) {
+        const k = 1 - ex.life / ex.maxLife;
+        ex.mesh.scale.setScalar(1 + k * 7);
+        ex.mesh.material.opacity = Math.max(0, ex.life / ex.maxLife) * 0.95;
+      }
+    }
+    for (const ex of state.explosions) if (ex.life <= 0 && ex.mesh) scene.remove(ex.mesh);
+    state.explosions = state.explosions.filter((ex) => ex.life > 0);
+
+    // Shop / safehouse proximity, for the HUD prompts.
+    const p0 = state.player;
+    state.nearShop = !state.interior && !p0.inCar ? nearestShop(p0.x, p0.z) : null;
+    state.nearSafehouse = !state.interior && !p0.inCar ? nearestSafehouse(p0.x, p0.z) : null;
 
     let events = stepPlayer(dt, input);
     for (const car of state.cars) {
@@ -1020,6 +1381,12 @@ export function createGame(w3d, seed) {
       }
     }
     stepFollowers(dt);
+    stepCrewAbilities(dt);
+    checkExplosions();
+    if (state.explosionEvent) {
+      state.explosionEvent = false;
+      events |= EVENT_EXPLOSION;
+    }
     events |= updatePolice(dt);
     if (events & EVENT_BUSTED) return events;
     updateWanted(dt);
@@ -1054,6 +1421,9 @@ export function createGame(w3d, seed) {
     state.upgrades = { engine: 0, tires: 0, nos: 0, armor: 0 };
     state.radioStation = 0; state.shotCam = null;
     state.stats = { carsStolen: 0, missionsDone: 0, arrests: 0, racesWon: 0 };
+    state.shopOpen = false; state.interior = null; state.saveRequested = false;
+    state.nearShop = null; state.nearSafehouse = null;
+    state.maraFireTimer = 0; state.explosionEvent = false;
     spawnAll();
   }
 
@@ -1100,7 +1470,8 @@ export function createGame(w3d, seed) {
   spawnAll();
   return {
     state, step, reset, serialize, restore, startMission, buyUpgrade,
-    stormLevel, carPerf,
+    stormLevel, carPerf, addFollower, buyShopItem, enterShop, enterSafehouse,
+    exitInterior,
     addPoliceCar(x, z) {
       const car = createPoliceCar(rng, x, z);
       car.mesh = makeCarMesh(0x111111, 'police');

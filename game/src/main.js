@@ -2,17 +2,22 @@
 // Boot and the one loop: input is read every frame, the world advances in
 // fixed 1/60 s steps, and the renderer paints what is there. The game moves
 // between title, play, paused and game-over screens, and progress (cash,
-// missions, respect, upgrades, crew, hurricane clock) saves to localStorage.
+// missions, respect, upgrades, crew, hurricane clock) saves to localStorage
+// (and on demand when a safehouse is entered).
 //
 // ?seed=N fixes the city and the traffic. ?shot=start|drive|chase|mission
 // (with &seed=N) stages that scene instead of running the loop, paints it
 // and sets window.__shotReady for a screenshot.
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
-import { createWorld3D, createGame, EVENT_BUSTED, EVENT_ENTER_CAR, EVENT_MISSION_DONE, EVENT_WASTED, EVENT_SHOT } from './world.js';
+import {
+  createWorld3D, createGame, EVENT_BUSTED, EVENT_ENTER_CAR,
+  EVENT_MISSION_DONE, EVENT_WASTED, EVENT_SHOT, EVENT_EXPLOSION,
+} from './world.js';
 import {
   ACTION_CONFIRM, ACTION_ENTER, ACTION_MUTE, ACTION_PAUSE, ACTION_PUNCH,
-  ACTION_WHEEL, ACTION_COVER, ACTION_GARAGE, ACTION_RADIO,
+  ACTION_WHEEL, ACTION_COVER, ACTION_GARAGE, ACTION_RADIO, ACTION_SHOP,
+  ACTION_SAFEHOUSE,
   ACTION_WEAPON_1, ACTION_WEAPON_2, ACTION_WEAPON_3, ACTION_WEAPON_4,
   createInput,
 } from './input.js';
@@ -35,6 +40,8 @@ const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() 
 
 const w3d = createWorld3D(seed);
 const game = createGame(w3d, seed);
+// Debug hook for headless smoke tests (shop, safehouse, explosion, perks).
+window.__game = game;
 const renderer = createRenderer(w3d);
 document.body.appendChild(renderer.canvas);
 const audio = createAudio();
@@ -89,7 +96,7 @@ function runShot(name) {
       window.__shotReady = true;
       const pp = game.state.player;
       const cp = w3d.camera.position;
-      status.textContent = `SHOTDEBUG ${name} x=${pp.x.toFixed(1)} z=${pp.z.toFixed(1)} speed=${pp.speed.toFixed(1)} wanted=${pp.wanted} mission=${game.state.missionIndex} heli=${Boolean(game.state.heli)} roadblocks=${game.state.roadblocks.length} police=${game.state.policeCars.length} cam=${cp.x.toFixed(1)},${cp.y.toFixed(1)},${cp.z.toFixed(1)} mesh=${Boolean(game.state.playerMesh)} meshPos=${game.state.playerMesh ? game.state.playerMesh.position.x.toFixed(1) + ',' + game.state.playerMesh.position.z.toFixed(1) : 'none'} targets=${game.state.targets.length}`;
+      status.textContent = `SHOTDEBUG ${name} x=${pp.x.toFixed(1)} z=${pp.z.toFixed(1)} speed=${pp.speed.toFixed(1)} wanted=${pp.wanted} mission=${game.state.missionIndex} heli=${Boolean(game.state.heli)} roadblocks=${game.state.roadblocks.length} police=${game.state.policeCars.length} cops=${game.state.cops.length} crew=${game.state.followers.length} cam=${cp.x.toFixed(1)},${cp.y.toFixed(1)},${cp.z.toFixed(1)} mesh=${Boolean(game.state.playerMesh)} meshPos=${game.state.playerMesh ? game.state.playerMesh.position.x.toFixed(1) + ',' + game.state.playerMesh.position.z.toFixed(1) : 'none'} targets=${game.state.targets.length} interior=${game.state.interior ? game.state.interior.kind : 'none'} wet=${w3d.wetOverlay ? w3d.wetOverlay.material.opacity.toFixed(2) : 'n/a'}`;
     }
     requestAnimationFrame(paint);
   }
@@ -142,6 +149,31 @@ function runGame() {
       game.state.radioStation = audio.station;
       game.say(`Radio: ${['NEON FM 88.4', 'BAY 101', 'PALM TALK 94', 'STORM 107'][audio.station]}`, 2);
     }
+    // Shop: B enters a nearby shop (panel opens inside); 1-3 buy while open.
+    if (actions & ACTION_SHOP) {
+      if (game.state.shopOpen) {
+        game.state.shopOpen = false;
+        game.say('Shop closed.', 2);
+      } else if (game.enterShop()) {
+        audio.door();
+      } else if (!game.state.nearShop) {
+        game.say('No shop nearby — look for the green $ on the minimap.', 3);
+      }
+    }
+    // Safehouse: H steps inside a nearby safehouse ($100, saves, clears wanted).
+    if (actions & ACTION_SAFEHOUSE) {
+      if (game.enterSafehouse()) audio.door();
+      else if (!game.state.nearSafehouse && !game.state.interior) {
+        game.say('No safehouse nearby — look for the blue H on the minimap.', 3);
+      }
+    }
+    if (game.state.shopOpen) {
+      const ids = ['ammo', 'armor', 'snack'];
+      [ACTION_WEAPON_1, ACTION_WEAPON_2, ACTION_WEAPON_3].forEach((flag, i) => {
+        if (actions & flag && game.buyShopItem(ids[i])) audio.buy();
+      });
+      return; // while shopping, 1-4 buy; they are not weapon picks.
+    }
     if (actions & ACTION_WEAPON_1) p.weapon = 'pistol';
     if (actions & ACTION_WEAPON_2) p.weapon = 'smg';
     if (actions & ACTION_WEAPON_3) p.weapon = 'shotgun';
@@ -173,7 +205,7 @@ function runGame() {
       enter: Boolean(actions & ACTION_ENTER),
       enterHeld: input.isHeld('e'),
       punch: Boolean(actions & ACTION_PUNCH),
-      click: clicked && !renderer.wheelOpen && !renderer.garageOpen,
+      click: clicked && !renderer.wheelOpen && !renderer.garageOpen && !game.state.shopOpen,
       mouseX: aim.x,
       mouseZ: aim.z,
       camYaw: renderer.getCamYaw(),
@@ -181,6 +213,7 @@ function runGame() {
     const events = game.step(dt, stepInput);
     if (events & EVENT_ENTER_CAR) audio.horn();
     if (events & EVENT_SHOT) audio.shot(game.state.player.weapon);
+    if (events & EVENT_EXPLOSION) audio.explosion();
     if (events & EVENT_BUSTED) endGame('busted');
     else if (events & EVENT_WASTED) endGame('wasted');
     else if (events & EVENT_MISSION_DONE) {
@@ -191,6 +224,11 @@ function runGame() {
         game.say(STORY_INTRO[introLine], 6);
         introLine += 1;
       }
+    }
+    // A safehouse entry asks for an immediate save.
+    if (game.state.saveRequested) {
+      game.state.saveRequested = false;
+      writeSave();
     }
     return actions;
   }
