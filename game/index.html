@@ -1,76 +1,150 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Neon Bay — a 3D open-world crime story</title>
+<link rel="icon" href="data:,">
+<title>Neon Bay — 3D Open-World Crime Game</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #2b4a8f;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  canvas { position: fixed; inset: 0; display: block; touch-action: none; z-index: 0; }
-  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; z-index: 2; }
-  .panel { position: absolute; background: rgba(10,20,30,0.82); border-radius: 10px;
-    padding: 10px 14px; }
-  .tl { top: 14px; left: 14px; width: 230px; }
-  .cash { color: #7dff8a; font-weight: 800; font-size: 26px; }
-  .bar { margin-top: 6px; height: 12px; border-radius: 6px; background: rgba(255,255,255,0.25); overflow: hidden; }
-  .bar .fill { height: 100%; background: #7dff8a; }
-  .bar.small { height: 8px; margin-top: 3px; }
-  .bar .fill.gold { background: #ffd700; }
-  .respect { margin-top: 8px; font-size: 13px; font-weight: 700; color: #ffd700; }
-  .district { margin-top: 6px; font-size: 13px; font-weight: 700; }
-  .tr { top: 14px; right: 14px; text-align: right; }
-  .stars { color: #ffd700; font-size: 26px; font-weight: 800; letter-spacing: 2px; }
-  .clock { font-size: 15px; font-weight: 700; margin-top: 2px; }
-  .storm { font-size: 14px; font-weight: 800; color: #ff8c42; margin-top: 2px; }
-  .radio { font-size: 12px; font-weight: 600; color: #cfe8ff; margin-top: 2px; }
-  .tc { top: 14px; left: 50%; transform: translateX(-50%); color: #ffd700;
-    font-weight: 700; font-size: 14px; max-width: 44vw; text-align: center; }
-  .bl { bottom: 14px; left: 14px; font-size: 15px; font-weight: 600; }
-  .perks { color: #7dff8a; font-size: 13px; }
-  #minimap { position: absolute; top: auto; left: auto; right: 14px; bottom: 14px; width: 220px; height: 220px; z-index: 2;
-    border-radius: 10px; border: 2px solid rgba(255,255,255,0.5); background: #2f7d32; }
-  .toast { position: absolute; left: 50%; bottom: 190px; transform: translateX(-50%);
-    background: rgba(10,20,30,0.65); border-radius: 10px; padding: 8px 16px;
-    font-weight: 700; font-size: 16px; }
-  .banner { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%);
-    background: rgba(20,16,40,0.78); border-radius: 10px; padding: 12px 20px;
-    color: #ffd700; font-weight: 700; font-size: 15px; max-width: 660px; text-align: center; }
-  .title { position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; text-align: center;
-    background: rgba(8,12,28,0.45); }
-  .title h1 { font-size: 96px; font-weight: 900; margin: 0;
-    background: linear-gradient(180deg, #ffe259, #ff7a1a 55%, #ff2e88);
-    -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .title p { font-size: 22px; font-weight: 600; margin: 10px 0; }
-  .title .card { background: rgba(10,20,30,0.7); border-radius: 14px; padding: 20px 28px;
-    font-size: 17px; line-height: 1.7; margin-top: 18px; }
-  .title .dim { color: #cfe8ff; font-size: 15px; font-weight: 400; }
-  .muted { position: absolute; top: 150px; right: 14px; color: #ffd700; font-weight: 700; }
-  .wheel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    display: flex; gap: 12px; background: rgba(10,20,30,0.75); border-radius: 16px; padding: 18px; }
-  .wheel-item { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 16px;
-    text-align: center; font-size: 14px; min-width: 90px; }
-  .wheel-item.sel { background: rgba(255,215,0,0.35); outline: 2px solid #ffd700; }
-  .wheel-hint { align-self: center; font-size: 13px; color: #cfe8ff; }
-  .garage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    background: rgba(10,20,30,0.88); border-radius: 16px; padding: 20px 26px; width: 420px; }
-  .garage h3 { margin: 0 0 12px; color: #ffd700; }
-  .g-row { display: flex; justify-content: space-between; padding: 8px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.15); font-size: 15px; }
-  .g-cost { color: #7dff8a; font-weight: 700; }
-  .garage .dim { margin-top: 10px; color: #cfe8ff; font-size: 13px; }
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip-path: inset(50%); white-space: nowrap; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e18;
+    font-family: 'Segoe UI', Arial, sans-serif; color: #fff; }
+  #game { position: fixed; inset: 0; }
+  #game canvas { display: block; }
+  .hud { position: fixed; z-index: 5; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  #top-left { top: 14px; left: 16px; }
+  #stars { font-size: 26px; letter-spacing: 3px; color: #fff; }
+  #cash { font-size: 26px; font-weight: 800; color: #7ed957; }
+  #respect, #mission-count { font-size: 14px; opacity: .9; }
+  #top-right { top: 14px; right: 16px; text-align: right; }
+  #district { display: inline-block; font-size: 15px; font-weight: 700; padding: 3px 10px;
+    border: 2px solid #e8a33d; border-radius: 20px; background: rgba(0,0,0,.45); }
+  #storm-clock { font-size: 20px; font-weight: 800; margin-top: 6px; color: #ffb36b; }
+  #storm-label { font-size: 11px; letter-spacing: 2px; opacity: .8; }
+  #objective { bottom: 118px; left: 50%; transform: translateX(-50%); font-size: 17px; font-weight: 700;
+    background: rgba(0,0,0,.55); padding: 7px 16px; border-radius: 8px; white-space: nowrap; }
+  #prompt { bottom: 88px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #ffd23d; font-weight: 600; }
+  #bottom-right { bottom: 16px; right: 16px; text-align: right; }
+  #weapon { font-size: 17px; font-weight: 700; }
+  #hp { font-size: 15px; margin-top: 3px; }
+  #nos-wrap { width: 170px; height: 10px; background: rgba(255,255,255,.2); border-radius: 5px; margin-top: 6px; margin-left: auto; overflow: hidden; }
+  #nos-fill { height: 100%; width: 100%; background: linear-gradient(90deg,#ff7722,#ffd23d); }
+  #nos-label { font-size: 11px; letter-spacing: 2px; opacity: .85; margin-top: 2px; }
+  #crew-line { bottom: 16px; left: 216px; font-size: 13px; max-width: 430px; }
+  #perks { color: #7ed957; font-weight: 600; margin-top: 2px; }
+  #minimap { position: fixed; left: 16px; bottom: 16px; z-index: 5; border: 2px solid rgba(255,255,255,.35);
+    border-radius: 8px; background: #0d1420; }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; z-index: 4;
+    pointer-events: none; opacity: .85; }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
+  #toast { position: fixed; top: 84px; left: 50%; transform: translateX(-50%); z-index: 8; font-size: 17px; font-weight: 700;
+    background: rgba(0,0,0,.65); padding: 8px 18px; border-radius: 8px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .screen { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; background: linear-gradient(180deg, rgba(10,10,26,.82), rgba(20,8,32,.88)); text-align: center; }
+  .screen h1 { font-size: 64px; letter-spacing: 8px; font-weight: 900;
+    background: linear-gradient(90deg,#ff4fd8,#ffd23d,#37e6ff); -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 40px rgba(255,79,216,.35); }
+  .screen h2 { font-size: 17px; font-weight: 400; opacity: .9; margin-top: 6px; max-width: 640px; line-height: 1.5; }
+  .screen .tag { margin-top: 10px; font-size: 13px; letter-spacing: 2px; color: #ffd23d; }
+  .screen button { pointer-events: auto; margin-top: 22px; font-size: 19px; font-weight: 800; padding: 13px 42px;
+    border: none; border-radius: 10px; cursor: pointer; color: #111;
+    background: linear-gradient(90deg,#ffd23d,#ff7a1a); box-shadow: 0 4px 24px rgba(255,122,26,.5); }
+  .screen button.secondary { background: rgba(255,255,255,.14); color: #fff; box-shadow: none; border: 1px solid rgba(255,255,255,.4); }
+  .controls { margin-top: 20px; font-size: 13.5px; line-height: 1.9; opacity: .92; columns: 2; column-gap: 44px; text-align: left; }
+  .controls b { color: #ffd23d; }
+  #mission-list { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 26px; font-size: 13px; text-align: left; opacity: .9; }
+  .mission-row .act { color: #37e6ff; font-size: 11px; }
+  #panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 15; display: none;
+    width: 520px; background: rgba(8,12,22,.94); border: 1px solid rgba(255,210,61,.5); border-radius: 12px; padding: 20px; }
+  #panel-title { font-size: 20px; font-weight: 800; margin-bottom: 12px; color: #ffd23d; }
+  .panel-row { display: flex; gap: 10px; align-items: center; padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 15px; }
+  .panel-key { background: #ffd23d; color: #111; font-weight: 800; border-radius: 5px; padding: 2px 9px; }
+  .panel-name { font-weight: 700; }
+  .panel-desc { opacity: .75; font-size: 13px; flex: 1; }
+  .panel-cost { font-weight: 800; color: #7ed957; }
+  .panel-hint { margin-top: 12px; font-size: 13px; opacity: .7; text-align: center; }
+  #wheel { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 12; display: none;
+    gap: 10px; pointer-events: none; }
+  .wheel-slot { background: rgba(0,0,0,.7); border: 2px solid rgba(255,255,255,.3); border-radius: 10px;
+    padding: 14px 18px; font-size: 15px; text-align: center; min-width: 110px; }
+  .wheel-slot.active { border-color: #ffd23d; background: rgba(60,45,0,.8); }
+  .wheel-slot b { display: block; color: #ffd23d; font-size: 18px; }
+  .wheel-slot span { display: block; font-size: 12px; opacity: .8; margin-top: 4px; }
+  #pause-screen { display: none; }
+  #pause-screen h1 { font-size: 44px; }
+  .save-note { margin-top: 14px; font-size: 13px; opacity: .75; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.min.js" } }
 </script>
 </head>
 <body>
-<div id="hud"></div>
-<canvas id="minimap" width="220" height="220" aria-label="Minimap of Neon Bay"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
-<script type="module" src="./src/main.js"></script>
+<div id="game"></div>
+
+<div class="hud" id="top-left">
+  <div id="stars">☆☆☆☆☆</div>
+  <div id="cash">$500</div>
+  <div id="respect">Respect 0</div>
+  <div id="mission-count">Missions 0/16</div>
+</div>
+<div class="hud" id="top-right">
+  <div id="district">Downtown</div>
+  <div id="storm-clock">🌀 20:00</div>
+  <div id="storm-label">HURRICANE LANDFALL</div>
+</div>
+<div class="hud" id="objective"></div>
+<div class="hud" id="prompt"></div>
+<div class="hud" id="bottom-right">
+  <div id="weapon">Pistol 12 / 48</div>
+  <div id="hp">HP 100</div>
+  <div id="nos-wrap"><div id="nos-fill"></div></div>
+  <div id="nos-label">NOS — SPACE</div>
+</div>
+<div class="hud" id="crew-line">
+  <div id="crew">Crew: —</div>
+  <div id="perks"></div>
+</div>
+<canvas id="minimap" width="190" height="190"></canvas>
+<div id="crosshair"></div>
+<div id="toast"></div>
+
+<div id="panel"><div id="panel-title"></div><div id="panel-body"></div></div>
+<div id="wheel"></div>
+
+<div class="screen" id="start-screen">
+  <h1>NEON BAY</h1>
+  <h2>An original 3D open-world crime game: 16 story missions, a 5-star police
+  force with helicopter and SWAT, a weapon wheel, garage upgrades with NOS,
+  shops and safehouses, exploding cars, a crew with live perks, and a
+  hurricane bearing down on the city. Steal a car. Make a name.</h2>
+  <div class="tag">16 STORY MISSIONS • 5-STAR POLICE • HURRICANE COUNTDOWN • CREW • GARAGE + NOS</div>
+  <button id="btn-start">▶ &nbsp;START NEW GAME</button>
+  <button id="btn-continue" class="secondary">Continue saved game</button>
+  <div class="controls">
+    <div><b>WASD</b> move / drive &nbsp; <b>SHIFT</b> run</div>
+    <div><b>E</b> enter / exit car &nbsp; <b>SPACE</b> NOS boost</div>
+    <div><b>Mouse</b> drag to orbit camera, click to shoot</div>
+    <div><b>Q</b> weapon wheel &nbsp; <b>1–4</b> pick gun</div>
+    <div><b>C</b> take cover &nbsp; <b>X</b> reload</div>
+    <div><b>R</b> radio &nbsp; <b>M</b> mute &nbsp; <b>G/B/H</b> garage / shop / safehouse</div>
+    <div><b>ESC</b> pause &nbsp; <b>ENTER</b> retry mission</div>
+  </div>
+  <div id="mission-list"></div>
+  <div class="save-note">Progress saves automatically — cash, missions, respect, upgrades, crew, hurricane clock.</div>
+</div>
+
+<div class="screen" id="pause-screen">
+  <h1>PAUSED</h1>
+  <h2>Neon Bay waits. The hurricane does not.</h2>
+  <button id="btn-resume">Resume</button>
+  <div class="controls">
+    <div><b>WASD</b> move / drive &nbsp; <b>E</b> enter car</div>
+    <div><b>SPACE</b> NOS &nbsp; <b>Q</b> weapons &nbsp; <b>C</b> cover</div>
+  </div>
+</div>
+
+<script type="module" src="./boot.js"></script>
 </body>
 </html>
