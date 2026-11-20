@@ -1,8 +1,8 @@
 # Neon Bay — 16 missions, 5-star BCPD, hurricane countdown
 
-[![make.fun](https://img.shields.io/badge/make.fun-gta6--01-ff5fa2)](https://make.fun/competitions/gta6-01)
-[![repo](https://img.shields.io/badge/repo-neon--bay-2ee6ff)](https://github.com/sixthin/neon-bay)
-[![build](https://img.shields.io/badge/build-three.js%20%7C%20golden%20hour-ffb84d)](https://threejs.org)
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/sixthin016/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/sixthin016/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
 - 16 named story missions across 5 districts, with respect, money and crew progression
 - 5-star BCPD police: PIT chases, named dispatch units, roadblocks, Air-1 helicopter, rappelling SWAT
