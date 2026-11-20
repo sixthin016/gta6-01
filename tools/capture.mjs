@@ -4,7 +4,7 @@
 // to JPEG quality 82 and shrink the quality until each file is at most 256 KiB.
 // Usage: node tools/capture.mjs  (run from the repository root)
 import { spawn, execFile } from 'node:child_process';
-import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 

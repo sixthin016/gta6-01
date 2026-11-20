@@ -1,5 +1,5 @@
-// Seeded random numbers (mulberry32): the same seed always stages the same city,
-// the same traffic and the same screenshot.
+// Seeded random numbers (mulberry32): the same seed always stages the same
+// city, the same traffic and the same screenshot.
 export function createRandom(seed) {
   let a = seed >>> 0;
   return {

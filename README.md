@@ -8,10 +8,12 @@ An open-world crime game in the spirit of GTA 6, playable in a desktop browser f
 
 ## What the four screenshots prove
 
-- **Shot 1 — Beach chase:** 3 police in PIT formation + Bell 412 heli with searchlight + tire smoke + debris streaks; HUD 128 km/h, 5/6 DELIVER, $5,240, ★★★★☆.
-- **Shot 2 — Market shootout:** bullet-holed barrier + 2 crew firing with muzzle flashes + 5 police in bounding overwatch + 2 SWAT on rappel ropes; HUD 5/6 DEFEND, $5,890, ★★★★★.
-- **Shot 3 — Vault heist:** PROTOTYPE server drive with red LED + hacking laptop at 3/4 nodes, 0:47 + 8-beam laser grid; HUD 6/6 EXTRACT, $9,600, ★★★★★.
-- **Shot 4 — Toll escape:** Bell 412 with gunner + spike strip, 4 cruisers and a Rhino tank on the upper deck + burning cruiser fireball; HUD 6/6 ESCAPE, $12,450, ★★★★★.
+| Shot | System shown | Visual proof in the frame | HUD state |
+|---|---|---|---|
+| 1 — Beach chase | 5-star police chase + heli | 3 police in PIT formation + Bell 412 heli with searchlight + tire smoke + debris streaks | 128 km/h, 5/6 DELIVER, $5,240, ★★★★☆ |
+| 2 — Market shootout | On-foot combat + SWAT | Bullet-holed barrier + 2 crew firing with muzzle flashes + 5 police in bounding overwatch + 2 SWAT on rappel ropes | 5/6 DEFEND, $5,890, ★★★★★ |
+| 3 — Vault heist | Hacking minigame + laser grid | PROTOTYPE server drive with red LED + hacking laptop at 3/4 nodes, 0:47 + 8-beam laser grid | 6/6 EXTRACT, $9,600, ★★★★★ |
+| 4 — Toll escape | Roadblock escape + fireball | Bell 412 with gunner + spike strip, 4 cruisers and a Rhino tank on the upper deck + burning cruiser fireball | 141 km/h, 6/6 ESCAPE, $12,450, ★★★★★ |
 
 ## The game
 

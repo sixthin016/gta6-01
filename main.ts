@@ -1,4 +1,4 @@
-// Neon Bay — Afterglow (gta6-01 round 8). Hands the game in: copies game/ and
+// Neon Bay — Afterglow (gta6-01 round 8, take 2). Hands the game in: copies game/ and
 // screenshots/ from beside this file to /output and writes /output/dossier.json
 // with the vendored make.fun library. Node 22+, standard library only.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:

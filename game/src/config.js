@@ -1,8 +1,8 @@
 // Neon Bay — Afterglow: every tunable number in one place.
-// Golden hour is locked at 17:00-18:00 for every staged shot; each shot runs its
-// own warm/cool colour script so the four thumbnails read as four places, not
-// one scene photographed four times. Palette lock (all shots): shadows #1A142E,
-// midtones #C89B5E, highlights #FFF3C4, accent #E84D2F.
+// Golden hour is locked at 17:00–18:00 for every staged shot; each shot runs
+// its own warm/cool colour script so the four thumbnails read as four places,
+// not one scene photographed four times. Palette lock (all shots): shadows
+// #1A142E, midtones #C89B5E, highlights #FFF3C4, accent #E84D2F.
 
 export const VIEW_W = 1280;
 export const VIEW_H = 720;
@@ -11,9 +11,9 @@ export const BEST_KEY = 'neonbay-afterglow-best';
 export const SAVE_KEY = 'neonbay-afterglow-save';
 export const GOLDEN_HOUR = '17:42';
 
-// Per-shot colour scripts (warm/cool split) + camera grammar. The horizon is the
-// vanishing-point height as a fraction of the frame: every shot uses a different
-// one so the four thumbnails never share a perspective.
+// Per-shot colour scripts (warm/cool split) + camera grammar. The horizon is
+// the vanishing-point height as a fraction of the frame: every shot uses a
+// different one so the four thumbnails never share a perspective.
 export const SHOT_SCRIPTS = {
   beach: {
     name: 'beach-chase',
