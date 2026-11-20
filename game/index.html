@@ -1,114 +1,70 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Neon Bay — open-world crime on Coral Isle</title>
+<title>Neon Bay — 16 missions, 5-star BCPD, hurricane countdown</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a0f2e; font-family: "Arial Narrow", Arial, sans-serif; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; z-index: 5;
-    text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.8); user-select: none; }
-  .panel { background: rgba(8, 8, 18, .62); border: 1px solid rgba(255,255,255,.22);
-    border-radius: 6px; padding: 8px 10px; backdrop-filter: blur(2px); }
-  /* ANCHORS — identical in every shot; only the values change. */
-  #hud-mission { position: absolute; top: 14px; left: 14px; width: 300px; }
-  #hud-mission .m-num { font-size: 13px; letter-spacing: 2px; color: #ffd75e; font-weight: bold; }
-  #hud-mission .m-title { font-size: 21px; font-weight: bold; letter-spacing: 1px; margin-top: 1px; }
-  #hud-mission .m-obj { font-size: 14px; line-height: 1.35; margin-top: 4px; color: #e8f4ff; }
-  #hud-mission .m-next { font-size: 12px; color: #9fd8ff; margin-top: 3px; }
-  #hud-units { position: absolute; top: 178px; left: 14px; width: 300px; font-size: 13px; line-height: 1.5; }
-  #hud-units .u-head { color: #ff8d7a; font-weight: bold; letter-spacing: 1px; font-size: 12px; }
-  #hud-units .u-row b { color: #ffd75e; }
-  #hud-stars { position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-    font-size: 30px; letter-spacing: 4px; color: #ffd75e; }
-  #hud-stars .off { color: rgba(255,255,255,.28); }
-  #hud-money { position: absolute; top: 14px; right: 14px; text-align: right; min-width: 190px; }
-  #hud-money .cash { font-size: 26px; font-weight: bold; color: #7dff9a; }
-  #hud-money .sub { font-size: 13px; color: #ffe9a8; margin-top: 2px; }
-  #hud-money .storm { font-size: 13px; color: #ff9d6b; margin-top: 2px; }
-  #hud-crew { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 8px; }
-  .crew-card { width: 108px; background: rgba(8,8,18,.66); border: 1px solid rgba(255,255,255,.25);
-    border-radius: 6px; padding: 5px; text-align: center; }
-  .crew-card canvas { width: 96px; height: 72px; border-radius: 4px; display: block; }
-  .crew-card .c-name { font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-top: 3px; }
-  .crew-card .c-role { font-size: 11px; color: #9fd8ff; }
-  .crew-card .c-hp { height: 6px; background: rgba(255,255,255,.2); border-radius: 3px; margin-top: 4px; overflow: hidden; }
-  .crew-card .c-hp > div { height: 100%; background: linear-gradient(90deg, #37e07a, #a5f2b0); }
-  .crew-card .c-hp.low > div { background: linear-gradient(90deg, #ff5a3c, #ffb03c); }
-  #hud-right { position: absolute; right: 14px; bottom: 14px; text-align: right; }
-  #hud-weapon { display: inline-block; font-size: 15px; margin-bottom: 6px; padding: 6px 10px; }
-  #hud-weapon b { color: #ffd75e; }
-  #hud-speed { font-size: 30px; font-weight: bold; margin-bottom: 6px; }
-  #hud-speed small { font-size: 13px; color: #cfe8ff; }
-  #hud-radio { display: inline-block; font-size: 13px; margin-bottom: 6px; padding: 5px 9px; color: #ffd7f2; }
-  #hud-minimap { border: 2px solid rgba(255,255,255,.55); border-radius: 50%; overflow: hidden;
-    width: 190px; height: 190px; margin-left: auto; box-shadow: 0 0 0 3px rgba(0,0,0,.45), 0 4px 18px rgba(0,0,0,.6); }
-  #hud-minimap canvas { width: 190px; height: 190px; display: block; }
-  #hud-hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-    font-size: 13px; color: rgba(255,255,255,.85); background: rgba(8,8,18,.5);
-    padding: 5px 12px; border-radius: 20px; }
-  #hud-toast { position: absolute; top: 96px; left: 50%; transform: translateX(-50%);
-    font-size: 19px; font-weight: bold; color: #ffd75e; letter-spacing: 1px; text-align: center; }
-  #title { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; text-align: center; color: #fff;
-    background: linear-gradient(180deg, rgba(20,4,40,.25) 0%, rgba(20,4,40,.05) 40%, rgba(10,2,24,.72) 100%); }
-  #title h1 { font-size: 84px; margin: 0; letter-spacing: 10px; font-style: italic;
-    background: linear-gradient(180deg, #fff 20%, #ffd75e 55%, #ff5e8a 100%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-    filter: drop-shadow(0 3px 0 #7a1030) drop-shadow(0 8px 22px rgba(0,0,0,.8)); }
-  #title .tag { font-size: 19px; letter-spacing: 3px; color: #ffe9a8; margin-top: 6px; }
-  #title .story { max-width: 640px; font-size: 16px; line-height: 1.5; color: #e8f4ff; margin-top: 18px; }
-  #title .play { margin-top: 26px; font-size: 22px; font-weight: bold; letter-spacing: 2px;
-    background: #ff2e63; padding: 12px 34px; border-radius: 8px; border: 2px solid #fff3;
-    animation: pulse 1.6s infinite; }
-  @keyframes pulse { 0%,100% { transform: scale(1);} 50% { transform: scale(1.05);} }
-  #title .keys { margin-top: 22px; font-size: 14px; color: #cfe8ff; line-height: 1.7; }
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#1a0e1e;font-family:'Segoe UI',Arial,Helvetica,sans-serif}
+  #app{position:fixed;inset:0}
+  canvas.webgl{display:block;width:100%;height:100%}
+  #hud{position:absolute;inset:0;pointer-events:none;color:#fff;z-index:5}
+  .panel{background:rgba(8,10,24,.72);border:1px solid rgba(255,190,80,.45);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.5);backdrop-filter:blur(2px)}
+  .panel h3{margin:0;font-size:11px;letter-spacing:.14em;color:#ffb84d;text-transform:uppercase}
+  .panel .sub{font-size:11px;color:#cfe6ff;line-height:1.35}
+  #mission{position:absolute;top:12px;left:12px;width:300px;padding:9px 11px}
+  #mission .obj{font-size:13px;font-weight:700;color:#fff;margin-top:3px}
+  #mission .step{font-size:11px;color:#9fe8ff;margin-top:2px}
+  #mission .storm{font-size:11px;color:#ff9d5c;margin-top:5px;font-weight:700}
+  #wanted{position:absolute;top:10px;left:50%;transform:translateX(-50%);text-align:center}
+  #wanted .stars{font-size:26px;letter-spacing:4px;color:#ffc93c;text-shadow:0 0 12px rgba(255,180,40,.9),0 2px 4px #000}
+  #wanted .stars .off{color:rgba(255,255,255,.28);text-shadow:none}
+  #wanted .label{font-size:10px;letter-spacing:.3em;color:#ffd9a0}
+  #money{position:absolute;top:12px;right:12px;width:238px;padding:9px 11px;text-align:right}
+  #money .cash{font-size:22px;font-weight:800;color:#7dff9a;text-shadow:0 1px 3px #000}
+  #money .row{font-size:11px;color:#d8e6ff;margin-top:2px}
+  #money .radio{font-size:11px;color:#ff9de2;margin-top:4px;font-weight:700}
+  #dispatch{position:absolute;top:150px;right:12px;width:210px;padding:8px 10px}
+  #dispatch .unit{font-size:11px;color:#ffe9c4;line-height:1.5}
+  #dispatch .unit b{color:#ffb84d}
+  #crew{position:absolute;left:12px;bottom:12px;display:flex;gap:8px}
+  .crewcard{width:104px;padding:7px 8px;text-align:center}
+  .crewcard .face{width:44px;height:44px;border-radius:50%;margin:0 auto 4px;border:2px solid #ffb84d;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#fff;text-shadow:0 1px 3px #000}
+  .crewcard .nm{font-size:11px;font-weight:700}
+  .crewcard .rl{font-size:10px;color:#9fe8ff}
+  .bar{height:6px;background:rgba(255,255,255,.18);border-radius:3px;margin-top:4px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#37e08a,#a8ff6a)}
+  .crewcard .hp{font-size:10px;color:#b9ffcf;margin-top:2px}
+  #weapons{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);padding:8px 12px;display:flex;gap:14px;align-items:center}
+  #weapons .wslot{font-size:11px;color:#cfe6ff;text-align:center;min-width:64px}
+  #weapons .wslot b{display:block;font-size:12px;color:#fff}
+  #weapons .wslot.cur{color:#ffd24d}
+  #weapons .wslot.cur b{color:#ffd24d}
+  #speedo{position:absolute;right:12px;bottom:132px;width:150px;text-align:right;padding:6px 10px}
+  #speedo .sp{font-size:30px;font-weight:800;color:#fff;text-shadow:0 2px 6px #000}
+  #speedo .sp small{font-size:12px;color:#ffd24d}
+  #minimap{position:absolute;right:12px;bottom:12px;width:150px;height:112px;border-radius:8px;border:1px solid rgba(255,190,80,.55);background:rgba(6,12,20,.8)}
+  #minimap canvas{display:block;width:100%;height:100%}
+  #toast{position:absolute;top:104px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:700;color:#ffe9c4;background:rgba(8,10,24,.75);border:1px solid rgba(255,190,80,.5);padding:6px 14px;border-radius:20px}
+  #help{position:absolute;left:12px;top:210px;width:230px;padding:8px 10px;font-size:11px;line-height:1.5;color:#d8e6ff}
+  #help b{color:#ffb84d}
 </style>
-<script type="importmap">
-{ "imports": { "three": "./vendor/three.module.min.js" } }
-</script>
 </head>
 <body>
-<canvas id="game" aria-label="Neon Bay: drive, fight and pull heists across Coral Isle"></canvas>
+<div id="app"></div>
 <div id="hud">
-  <div id="hud-mission" class="panel">
-    <div class="m-num" id="m-num">MISSION 5/16</div>
-    <div class="m-title" id="m-title">DELIVER THE PACKAGE</div>
-    <div class="m-obj" id="m-obj">Drive the prototype to the marina drop-off. BCPD is on your tail — lose them or outrun them.</div>
-    <div class="m-next" id="m-next">Next: lose the heat &middot; then meet Mara at the safehouse</div>
-  </div>
-  <div id="hud-units" class="panel">
-    <div class="u-head">BCPD DISPATCH — AIR ONE ACTIVE</div>
-    <div id="u-rows"></div>
-  </div>
-  <div id="hud-stars"><span id="stars"></span></div>
-  <div id="hud-money" class="panel">
-    <div class="cash" id="cash">$5.240</div>
-    <div class="sub" id="respect">RESPECT 42 &middot; CORAL ISLE</div>
-    <div class="storm" id="storm">HURRICANE LANDFALL 19:42</div>
-  </div>
-  <div id="hud-crew"></div>
-  <div id="hud-right">
-    <div id="hud-weapon" class="panel">🔫 <b id="w-name">SMG</b> &nbsp;<span id="w-ammo">32 / 180</span></div><br>
-    <div id="hud-speed"><span id="speed">128</span> <small>km/h</small></div><br>
-    <div id="hud-radio" class="panel">♪ <span id="radio">NEON FM 101.3</span></div><br>
-    <div id="hud-minimap"><canvas id="minimap" width="380" height="380"></canvas></div>
-  </div>
-  <div id="hud-toast"></div>
-  <div id="hud-hint">WASD drive &middot; E enter / exit car &middot; SPACE brake &middot; SHIFT NOS &middot; 1–4 weapons &middot; Q radio &middot; M map</div>
+  <div id="mission" class="panel"><h3 id="m-mission">Mission 5/16</h3><div class="obj" id="m-obj">DELIVER THE PACKAGE</div><div class="step" id="m-step">▸ Reach the drop point on Bayfront Ave</div><div class="storm" id="m-storm">🌀 HURRICANE LANDFALL 19:42:10</div></div>
+  <div id="wanted"><div class="stars" id="m-stars">★★★★<span class="off">☆</span></div><div class="label">BCPD WANTED LEVEL</div></div>
+  <div id="money" class="panel"><div class="cash" id="m-cash">$5,240</div><div class="row" id="m-respect">RESPECT 62 &nbsp;•&nbsp; DISTRICT BAYFRONT</div><div class="row" id="m-time">17:42 &nbsp;•&nbsp; GOLDEN HOUR &nbsp;•&nbsp; 28°C</div><div class="radio" id="m-radio">♪ NEON FM 101.1 — Midnight Drive</div></div>
+  <div id="dispatch" class="panel"><h3>BCPD Dispatch</h3><div id="m-units"></div></div>
+  <div id="crew"></div>
+  <div id="weapons" class="panel"></div>
+  <div id="speedo" class="panel"><div class="sp"><span id="m-speed">128</span> <small>km/h</small></div></div>
+  <div id="minimap"><canvas id="mmap" width="300" height="224"></canvas></div>
+  <div id="toast"></div>
+  <div id="help" class="panel"><b>WASD</b> drive &nbsp; <b>Space</b> brake &nbsp; <b>Shift</b> NOS<br><b>F</b> on foot / enter car &nbsp; <b>1–4</b> weapons<br><b>Q</b> weapon wheel &nbsp; <b>R</b> radio &nbsp; <b>M</b> missions<br>Progress saves automatically.</div>
 </div>
-<div id="title">
-  <h1>NEON BAY</h1>
-  <div class="tag">CORAL ISLE &middot; 16 STORY MISSIONS &middot; 5-STAR BCPD &middot; HURRICANE IN 20 MIN</div>
-  <div class="story">A hurricane is coming for Coral Isle — and so is the Bay City Police Department.
-    Drive, steal, shoot and outrun the whole island with your crew: Mara the hacker, Jax the driver,
-    Reyes the gunner. Sixteen missions from the beach to the stacked highway.</div>
-  <div class="play">▶ CLICK TO PLAY</div>
-  <div class="keys">WASD — drive / walk &nbsp;·&nbsp; E — steal car &nbsp;·&nbsp; SHIFT — NOS boost &nbsp;·&nbsp; 1–4 — weapons &nbsp;·&nbsp; Mouse — look &nbsp;·&nbsp; Q — radio</div>
-</div>
-<p id="status" role="status" aria-live="polite"></p>
-<script type="module" src="./boot.js"></script>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+<script type="module" src="./src/main.js"></script>
 </body>
 </html>
