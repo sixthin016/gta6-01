@@ -4,14 +4,31 @@
 [![rank](https://make.fun/badge/gta6-01/sixthin016/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/sixthin016/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-- 16 named story missions across 5 districts, with respect, money and crew progression
-- 5-star BCPD police: PIT chases, named dispatch units, roadblocks, Air-1 helicopter, rappelling SWAT
-- Crew perks: Jax (driver, NOS tune), Mara (hacker, faster breach), Reyes (gunner, steady aim)
-- Hurricane countdown: 20-minute storm clock that drives the story to landfall
-- Garage + NOS: tuned hero car with nitrous flame, brake glow and wet-road reflections
-- Weapon wheel: pistol, SMG, shotgun, rifle with ammo, muzzle flash and shell casings
+An open-world crime game set in Neon Bay, an island city at golden hour with a
+hurricane 20 minutes from landfall. Drive, fight, hack and escape — all from
+static files, no network requests.
 
-1. Beach chase — 3 BCPD cruisers in PIT formation around the hero car at 128 km/h, tire smoke, flying debris, Air-1 helicopter whole in frame with rotor blur and searchlight cone; HUD: 5/6 DELIVER, $5,240, ★★★★☆, phone GPS showing "5/6" in the driver's hand.
-2. Market battle — on-foot 3-plane shootout: bullet-holed barrier with blood and an overturned cart in front, player + 2 crew firing with muzzle flash and casings mid-air, 5 police in bounding overwatch with 2 SWAT rappelling from Air-1 behind; HUD: 5/6 DEFEND, $5,890, ★★★★★, smartwatch showing ★★★★★ and crew health.
-3. Interior heist — server racks with a red-blinking PROTOTYPE drive, laptop running the hacking minigame (3/4 nodes, timer 0:47), 8-beam laser grid, crew at their stations, getaway car visible through the garage door, 2 cracked windows with spiderweb glass; HUD: 6/6 EXTRACT, $9,600, ★★★★★.
-4. Stacked highway escape — two-level toll interchange: hero car on the lower deck, upper-deck roadblock with spike strip, 4 cruisers and a Rhino tank in full view, Bell 412 helicopter center frame with open door, gunner and cockpit panel reading "ESCAPE 2.3km"; HUD: 6/6 ESCAPE, $12,450, ★★★★★, same crew portraits as shots 1–3.
+- 16 named story missions across 5 districts, with money, respect and crew progression
+- 5-star BCPD wanted system: PIT-formation chases, roadblocks, the Air-1 helicopter and SWAT rappelling from the sky
+- A 3-person crew with real perks: Jax tunes the NOS, Mara breaches faster, Reyes steadies your aim
+- A 20-minute hurricane countdown pushing the whole story toward landfall
+- A garage hero car with NOS flames, brake glow and wet-road reflections, plus a 4-weapon wheel
+- 4 radio stations, shops and safehouses, exploding cars, pedestrians and colorful traffic
+
+## The four shots
+
+1. **Beach chase** — the Coral GT counter-steers through a PIT formation on Shore Drive while Air-1's searchlight cuts the haze; the driver's phone shows the GPS route, 5 of 6 drops done.
+2. **Market battle** — a night-market shootout behind a bullet-pocked barricade: the crew fires over cover as BCPD officers advance and SWAT drops in on ropes.
+3. **Interior heist** — inside the server room, Mara's laptop runs the breach (3 of 4 nodes, 0:47 left) under a laser grid while the getaway car waits in the open garage.
+4. **Highway escape** — the final run up the stacked tollway: a Rhino tank and four cruisers block the upper deck, Air-1 hangs overhead, and the crew races the storm to landfall.
+
+## Play it
+
+```sh
+node serve.ts   # http://localhost:8080
+```
+
+W/↑ accelerate, S/↓ brake, A/D steer, SHIFT NOS, SPACE handbrake, E get in/out
+of the car, click to fire on foot, F cycle weapon, Q weapon wheel, M radio.
+Progress saves in your browser. The entry program is `main.ts`:
+`mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts`.
