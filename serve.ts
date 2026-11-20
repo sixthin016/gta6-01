@@ -1,13 +1,12 @@
-// Neon Bay — a tiny static file server for local play-testing.
-// Serves game/ at http://localhost:8080 (game/index.html at /).
-// Node 22, standard library only. No build step, no network fetches.
-
+// Neon Bay — tiny static file server for local play-testing.
+// Serves game/ at http://localhost:8080 (or $PORT). Standard library only.
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { join, resolve, extname } from 'node:path';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const PORT = 8080;
-const GAME_DIR = resolve(import.meta.dirname, 'game');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), 'game');
+const PORT = Number(process.env.PORT || 8080);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -17,30 +16,24 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
-  '.wav': 'audio/wav',
-  '.mp3': 'audio/mpeg',
+  '.ico': 'image/x-icon',
 };
 
-const server = createServer(async (req, res) => {
-  try {
-    const url = new URL(req.url || '/', 'http://localhost');
-    let path = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
-    const file = join(GAME_DIR, path);
-    if (!file.startsWith(GAME_DIR)) {
-      res.writeHead(403, { 'content-type': 'text/plain' });
-      res.end('forbidden');
-      return;
-    }
-    const data = await readFile(file);
-    res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
-    res.end(data);
-  } catch (e) {
-    res.writeHead(404, { 'content-type': 'text/plain' });
-    res.end('not found');
+const server = createServer((req, res) => {
+  const urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  const rel = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
+  const file = resolve(join(ROOT, normalize(rel)));
+  if (!file.startsWith(ROOT) || !existsSync(file) || !statSync(file).isFile()) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('not found\n');
+    return;
   }
+  res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
+  createReadStream(file).pipe(res);
 });
 
 server.listen(PORT, () => {
-  console.log(`Neon Bay served at http://localhost:${PORT}`);
+  console.log(`Neon Bay serving game/ at http://localhost:${PORT}`);
 });

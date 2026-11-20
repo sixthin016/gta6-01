@@ -1,119 +1,144 @@
-// Neon Bay — the entry program. Copies game/ and screenshots/ from this
-// repository into the output directory (MAKEFUN_OUTPUT_DIR, or /output),
-// then writes dossier.json with buildDossier from vendor/makefun-game.ts.
+// Neon Bay — entrypoint for the make.fun gta6-01 bounty.
 //
-// Node 22, standard library only. It runs twice and writes identical bytes:
-// the copy is a plain recursive copy in sorted order, and the dossier is
-// built twice in-process and compared before anything is written.
-
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+// What this program does, in order:
+//   1. Copies game/ and screenshots/ from this repository into the output
+//      directory (MAKEFUN_OUTPUT_DIR, or /output outside the grader).
+//   2. Builds /output/dossier.json with buildDossier from vendor/makefun-game.ts.
+//   3. Validates its own work: screenshot count and size, game file and byte
+//      caps, no symlinks, and that building the dossier twice from the same
+//      output yields byte-identical output (determinism).
+//
+// Node 22+, standard library only. Run from the repository root:
+//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
-const REPO_ROOT = resolve(import.meta.dirname);
+const REPO_ROOT = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(process.env.MAKEFUN_OUTPUT_DIR || '/output');
 
-const CAPS = {
-  text_max_bytes: 163840,
-  screenshots: { max: 4, max_bytes: 256 * 1024 },
-  game_max_files: 993,
-  game_max_bytes: 48 * 1024 * 1024,
-  game_path_max_bytes: 1000,
-};
+// Competition caps (RULES.txt): game/ at most 993 entries and 48 MiB,
+// index.html at most 1 MiB, screenshots 3-4 files at most 256 KiB each,
+// dossier.json at most 1.5 MiB.
+const GAME_MAX_FILES = 993;
+const GAME_MAX_BYTES = 48 * 1024 * 1024;
+const INDEX_HTML_MAX_BYTES = 1024 * 1024;
+const SCREENSHOT_MAX_BYTES = 256 * 1024;
+const DOSSIER_MAX_BYTES = Math.floor(1.5 * 1024 * 1024);
 
-const SCREENSHOT_LIMIT = 256 * 1024;
-const INDEX_HTML_LIMIT = 1024 * 1024;
+const JPEG_MAGIC = [0xff, 0xd8, 0xff];
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-function fail(message: string): never {
-  throw new Error('main.ts: ' + message);
+function fail(message) {
+  throw new Error(`main.ts: ${message}`);
 }
 
-// Walk a directory and return every entry below it, relative, sorted.
-function walk(dir: string, base = ''): string[] {
-  const out: string[] = [];
-  for (const name of readdirSync(join(dir, base)).sort()) {
-    const rel = base ? base + '/' + name : name;
-    const full = join(dir, rel);
-    const st = lstatSync(full);
-    if (st.isSymbolicLink()) fail('symlink found at ' + rel + ' — game/ must be plain files only');
-    if (st.isDirectory()) out.push(...walk(dir, rel));
-    else if (st.isFile()) out.push(rel);
-    else fail('unsupported entry at ' + rel);
+function isImageBytes(bytes) {
+  const startsWith = (magic) => magic.every((b, i) => bytes[i] === b);
+  return startsWith(JPEG_MAGIC) || startsWith(PNG_MAGIC);
+}
+
+// Walk game/ once: count entries, sum bytes, refuse symlinks, refuse an
+// oversized index.html. Returns { entries, bytes }.
+function validateGameTree(gameDir) {
+  if (!existsSync(gameDir)) fail('game/ is missing from the repository');
+  let entries = 0;
+  let bytes = 0;
+  const stack = [gameDir];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    for (const name of readdirSync(dir)) {
+      const path = join(dir, name);
+      const st = lstatSync(path);
+      entries += 1;
+      if (st.isSymbolicLink()) fail(`game/ holds a symlink: ${path}`);
+      if (st.isDirectory()) {
+        stack.push(path);
+      } else if (st.isFile()) {
+        bytes += st.size;
+        if (name === 'index.html' && dir === gameDir && st.size > INDEX_HTML_MAX_BYTES) {
+          fail(`game/index.html is ${st.size} bytes, over the 1 MiB cap`);
+        }
+      } else {
+        fail(`game/ holds a non-regular file: ${path}`);
+      }
+    }
   }
-  return out;
+  if (entries > GAME_MAX_FILES) fail(`game/ holds ${entries} entries, over the ${GAME_MAX_FILES} cap`);
+  if (bytes > GAME_MAX_BYTES) fail(`game/ totals ${bytes} bytes, over the 48 MiB cap`);
+  return { entries, bytes };
 }
 
-function isJpeg(bytes: Buffer): boolean {
-  return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+// Screenshots: 3 or 4 real JPEG/PNG files, each within the size cap.
+function validateScreenshots(shotsDir) {
+  if (!existsSync(shotsDir)) fail('screenshots/ is missing from the repository');
+  const names = readdirSync(shotsDir)
+    .filter((n) => !n.startsWith('.'))
+    .sort();
+  if (names.length < 3 || names.length > 4) {
+    fail(`screenshots/ holds ${names.length} files, need 3 or 4`);
+  }
+  const sizes = [];
+  for (const name of names) {
+    const path = join(shotsDir, name);
+    const st = statSync(path);
+    if (!st.isFile()) fail(`screenshots/${name} is not a regular file`);
+    if (st.size > SCREENSHOT_MAX_BYTES) {
+      fail(`screenshots/${name} is ${st.size} bytes, over the 256 KiB cap`);
+    }
+    const bytes = readFileSync(path);
+    if (!isImageBytes(bytes)) fail(`screenshots/${name} is not a JPEG or PNG`);
+    sizes.push({ name, bytes: st.size });
+  }
+  return sizes;
 }
 
-function isPng(bytes: Buffer): boolean {
-  return (
-    bytes.length > 8 &&
-    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
-    bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
-  );
+function copyTree(src, dest) {
+  rmSync(dest, { recursive: true, force: true });
+  mkdirSync(dest, { recursive: true });
+  cpSync(src, dest, { recursive: true, dereference: false });
 }
 
-function main(): void {
+function main() {
   const gameDir = join(REPO_ROOT, 'game');
   const shotsDir = join(REPO_ROOT, 'screenshots');
-  if (!existsSync(gameDir) || !statSync(gameDir).isDirectory()) fail('no game/ directory in the repository');
-  if (!existsSync(shotsDir) || !statSync(shotsDir).isDirectory()) fail('no screenshots/ directory in the repository');
 
-  // --- validate the game tree before copying it anywhere -------------------
-  const gameFiles = walk(gameDir);
-  if (gameFiles.length > CAPS.game_max_files) {
-    fail(`game/ has ${gameFiles.length} files, over the ${CAPS.game_max_files} limit`);
-  }
-  let gameBytes = 0;
-  for (const rel of gameFiles) {
-    const bytes = statSync(join(gameDir, rel)).size;
-    gameBytes += bytes;
-    if (Buffer.byteLength(rel, 'utf8') > CAPS.game_path_max_bytes) fail('game path too long: ' + rel);
-  }
-  if (gameBytes > CAPS.game_max_bytes) fail(`game/ is ${gameBytes} bytes, over the ${CAPS.game_max_bytes} limit`);
-  const indexHtml = join(gameDir, 'index.html');
-  if (!existsSync(indexHtml)) fail('game/index.html is missing');
-  if (statSync(indexHtml).size > INDEX_HTML_LIMIT) fail('game/index.html is over the 1 MiB limit');
+  // Validate the repository first, before writing anything.
+  const game = validateGameTree(gameDir);
+  const shots = validateScreenshots(shotsDir);
 
-  // --- validate the screenshots ---------------------------------------------
-  const shotNames = readdirSync(shotsDir).filter((n) => !n.startsWith('.')).sort();
-  if (shotNames.length < 3 || shotNames.length > 4) {
-    fail(`screenshots/ holds ${shotNames.length} images, need 3 or 4`);
-  }
-  for (const name of shotNames) {
-    if (!/^[A-Za-z0-9._-]+$/.test(name) || name.startsWith('-') || name.length > 128) {
-      fail('bad screenshot name: ' + name);
-    }
-    const full = join(shotsDir, name);
-    if (!statSync(full).isFile()) fail('screenshot is not a regular file: ' + name);
-    const bytes = readFileSync(full);
-    if (bytes.length > SCREENSHOT_LIMIT) fail(`screenshot ${name} is ${bytes.length} bytes, over the 256 KiB limit`);
-    if (!isJpeg(bytes) && !isPng(bytes)) fail('screenshot ' + name + ' is neither a JPEG nor a PNG');
-  }
-
-  // --- copy into the output directory ---------------------------------------
-  rmSync(OUTPUT_DIR, { recursive: true, force: true });
+  // Fresh output: replace only the three paths this program owns.
   mkdirSync(OUTPUT_DIR, { recursive: true });
-  cpSync(gameDir, join(OUTPUT_DIR, 'game'), { recursive: true });
-  cpSync(shotsDir, join(OUTPUT_DIR, 'screenshots'), { recursive: true });
+  copyTree(gameDir, join(OUTPUT_DIR, 'game'));
+  copyTree(shotsDir, join(OUTPUT_DIR, 'screenshots'));
 
-  // --- build the dossier twice; both runs must agree byte for byte ---------
-  const first = buildDossier(OUTPUT_DIR, CAPS);
-  const second = buildDossier(OUTPUT_DIR, CAPS);
+  const caps = {
+    text_max_bytes: 163840,
+    screenshots: { max: 4, max_bytes: SCREENSHOT_MAX_BYTES },
+    game_max_files: GAME_MAX_FILES,
+    game_max_bytes: GAME_MAX_BYTES,
+    game_path_max_bytes: 1000,
+  };
+
+  // Determinism: build the dossier twice from the same output and require
+  // byte-identical results before writing anything to disk.
+  const first = buildDossier(OUTPUT_DIR, caps);
+  const second = buildDossier(OUTPUT_DIR, caps);
   if (first.length !== second.length || !first.every((b, i) => b === second[i])) {
-    fail('buildDossier is not deterministic across two runs');
+    fail('dossier is not deterministic: two builds from the same output differ');
   }
-  if (first.length > 1.5 * 1024 * 1024) fail('dossier.json would be over the 1.5 MiB limit');
-  writeFileSync(join(OUTPUT_DIR, 'dossier.json'), first);
+  if (first.length > DOSSIER_MAX_BYTES) {
+    fail(`dossier.json would be ${first.length} bytes, over the 1.5 MiB cap`);
+  }
 
-  // --- report ----------------------------------------------------------------
-  const dossier = readFileSync(join(OUTPUT_DIR, 'dossier.json'));
-  console.log(`Neon Bay entry written to ${OUTPUT_DIR}`);
-  console.log(`  game/: ${gameFiles.length} files, ${gameBytes} bytes`);
-  console.log(`  screenshots/: ${shotNames.join(', ')}`);
-  console.log(`  dossier.json: ${dossier.length} bytes (deterministic across two runs)`);
+  writeFileSync(join(OUTPUT_DIR, 'dossier.json'), first);
+  const written = statSync(join(OUTPUT_DIR, 'dossier.json'));
+  if (written.size !== first.length) fail('dossier.json was not written whole');
+
+  console.log(`Neon Bay packaged: game ${game.entries} entries / ${game.bytes} bytes, ` +
+    `${shots.length} screenshots (${shots.map((s) => `${s.name} ${s.bytes}B`).join(', ')}), ` +
+    `dossier.json ${first.length} bytes (deterministic, 2 builds identical) -> ${OUTPUT_DIR}`);
 }
 
 main();
