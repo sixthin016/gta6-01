@@ -1,236 +1,121 @@
-// Neon Bay — people: the player on foot, sidewalk pedestrians, crew
-// followers (Jax / Mara / Reyes) and their live perks, and mission
-// shoot targets. Mara's cover fire lives here; Jax/Reyes perks hook
-// into driving in sim/cars.js.
+// People — pedestrians in varied colors (never black blocks), crew figures,
+// the driver with a phone, SWAT operators. Built from simple parts, posed by code.
 import * as THREE from 'three';
-import { S } from '../core/state.js';
 import { makeRng } from '../core/rng.js';
-import { tracerFX, burst } from '../fx/particles.js';
-import { sfx } from '../core/sound.js';
-import { damageCop } from './police.js';
 
-const SHIRTS = [0xe8e8e8, 0x37d67a, 0xd43d2a, 0x2a6fd4, 0xe8c33d, 0x8a5fd4, 0xff7a1a];
+export const SHIRTS = [0xff5e8a, 0x2ee6ff, 0xffd75e, 0x7dff9a, 0xff8d3c, 0x7a5cff, 0xe8f4ff, 0xd94f30, 0x2e9ec8, 0xc98d5f];
+export const PANTS = [0x2a3a5a, 0x3a2a1a, 0x4a4a4a, 0x5a2a3a, 0x2a4a3a, 0x6a6a7a];
+export const SKINS = [0xe8b98a, 0xc98d5f, 0xa9713f, 0x8a5a34, 0xf2c9a0];
 
-export function makeHumanoid(shirt, pants = 0x2a2f3a, skin = 0xc98e6b) {
+// A standing person: legs, torso, arms, head — colored, ~1.75m.
+export function makePed(opts) {
+  const { shirt = 0xff5e8a, pants = 0x2a3a5a, skin = 0xe8b98a, scale = 1, hat = null } = opts || {};
+  const p = new THREE.Group();
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.85 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: pants, roughness: 0.9 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.7 });
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.78, 0.18), pantsMat);
+  legL.position.set(-0.11, 0.39, 0);
+  const legR = legL.clone(); legR.position.x = 0.11;
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.62, 0.26), shirtMat);
+  torso.position.y = 1.09; torso.castShadow = true;
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.58, 0.14), shirtMat);
+  armL.position.set(-0.3, 1.08, 0);
+  const armR = armL.clone(); armR.position.x = 0.3;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 10), skinMat);
+  head.position.y = 1.58; head.castShadow = true;
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.175, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    new THREE.MeshStandardMaterial({ color: hat || 0x1a1a1a, roughness: 1 }));
+  hair.position.y = 1.6;
+  p.add(legL, legR, torso, armL, armR, head, hair);
+  p.scale.setScalar(scale);
+  p.userData = { armL, armR, legL, legR, head, torso };
+  return p;
+}
+
+// Crouching shooter: lowered torso, one arm extended with a rifle.
+export function makeShooter(opts) {
+  const p = makePed(opts);
+  const u = p.userData;
+  u.torso.position.y = 0.82; u.torso.rotation.x = 0.35;
+  u.head.position.y = 1.24; u.head.position.z = 0.14;
+  u.legL.position.y = 0.28; u.legL.rotation.x = -1.2;
+  u.legR.position.y = 0.28; u.legR.rotation.x = -0.5; u.legR.position.z = 0.25;
+  u.armL.position.set(-0.28, 0.95, 0.3); u.armL.rotation.x = -1.3;
+  u.armR.position.set(0.28, 0.95, 0.3); u.armR.rotation.x = -1.3;
+  return p;
+}
+
+// Kneeling police officer (bounding overwatch).
+export function makeKneelingCop() {
+  const p = makePed({ shirt: 0x4a6a8a, pants: 0x2a343e, skin: 0xc98d5f, hat: 0xd8dce2 });
+  const u = p.userData;
+  u.legL.position.y = 0.2; u.legL.rotation.x = -1.5;
+  u.legR.position.y = 0.12; u.legR.rotation.x = 0.2; u.legR.position.z = -0.2;
+  u.torso.position.y = 0.72;
+  u.head.position.y = 1.12;
+  u.armL.rotation.x = -1.2; u.armL.position.set(-0.28, 0.85, 0.25);
+  u.armR.rotation.x = -1.2; u.armR.position.set(0.28, 0.85, 0.25);
+  // helmet brim
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.04, 10),
+    new THREE.MeshStandardMaterial({ color: 0xd8dce2 }));
+  brim.position.y = 1.16;
+  p.add(brim);
+  return p;
+}
+
+// SWAT operator descending a rope: dark gear, helmet, rifle slung.
+export function makeSwat() {
+  const p = makePed({ shirt: 0x22262e, pants: 0x1a1e24, skin: 0x8a5a34, hat: 0x0c0e12 });
+  const u = p.userData;
+  const vest = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x11141a }));
+  vest.position.y = 1.1;
+  p.add(vest);
+  u.armL.rotation.x = -0.9; u.armL.position.set(-0.3, 1.15, 0.2);
+  u.armR.rotation.x = -0.9; u.armR.position.set(0.3, 1.15, 0.2);
+  return p;
+}
+
+// Driver seated in a car, one arm raised holding a phone (GPS visible).
+export function makeDriverWithPhone(phoneTexture) {
   const g = new THREE.Group();
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.78, 0.36),
-    new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.9 }));
-  torso.position.y = 1.05;
-  g.add(torso);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8),
-    new THREE.MeshStandardMaterial({ color: skin, roughness: 0.8 }));
-  head.position.y = 1.72;
-  g.add(head);
-  const legMat = new THREE.MeshStandardMaterial({ color: pants, roughness: 0.95 });
-  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.68, 0.26), legMat);
-  legL.position.set(-0.16, 0.34, 0);
-  const legR = legL.clone();
-  legR.position.x = 0.16;
-  g.add(legL); g.add(legR);
-  const armMat = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.9 });
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.62, 0.2), armMat);
-  armL.position.set(-0.42, 1.05, 0);
-  const armR = armL.clone();
-  armR.position.x = 0.42;
-  g.add(armL); g.add(armR);
-  g.userData = { legL, legR, armL, armR, torso };
+  const body = makePed({ shirt: 0x2ee6ff, pants: 0x2a3a5a, skin: 0xc98d5f, hat: 0x111111 });
+  const u = body.userData;
+  u.legL.rotation.x = -1.4; u.legL.position.set(-0.11, 0.3, 0.3);
+  u.legR.rotation.x = -1.4; u.legR.position.set(0.11, 0.3, 0.3);
+  u.armL.rotation.x = -1.1; u.armL.position.set(-0.3, 0.95, 0.35);
+  // raised arm + phone (bigger, so the GPS screen reads at frame scale)
+  u.armR.rotation.x = -2.4; u.armR.position.set(0.32, 1.25, 0.28);
+  const phone = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.5),
+    new THREE.MeshBasicMaterial({ map: phoneTexture }));
+  phone.position.set(0.34, 1.72, 0.42);
+  phone.rotation.x = -0.5;
+  body.add(phone);
+  g.add(body);
   return g;
 }
 
-export function spawnPlayerRig() {
-  const mesh = makeHumanoid(0x222226, 0x1c1f26, 0xc98e6b);
-  // player's jacket: teal
-  mesh.userData.torso.material = new THREE.MeshStandardMaterial({ color: 0x1f8a8a, roughness: 0.85 });
-  mesh.position.copy(S.player.pos);
-  S.scene.add(mesh);
-  S.playerMesh = mesh;
-  return mesh;
-}
-
-export function spawnPeds(n) {
-  const rng = makeRng(S.seed * 911 + 3);
-  const GRID = [-160, -120, -80, -40, 0, 40, 80, 120, 160];
-  for (let i = 0; i < n; i++) {
-    const mesh = makeHumanoid(rng.pick(SHIRTS));
-    const x = rng.pick(GRID) + rng.range(6, 10) * rng.pick([-1, 1]);
-    const z = rng.range(-180, 180);
-    mesh.position.set(x, 0, z);
-    S.scene.add(mesh);
-    S.peds.push({
-      mesh, hp: 100,
-      target: new THREE.Vector3(rng.pick(GRID), 0, rng.range(-180, 180)),
-      speed: rng.range(1.2, 2.4), wait: 0, walkPhase: rng.range(0, 6),
+// Pedestrian crowd along a sidewalk line.
+export function spawnPeds(scene, rngSeed, count, origin, dir, spacing) {
+  const rng = makeRng(rngSeed);
+  const peds = [];
+  for (let i = 0; i < count; i++) {
+    const ped = makePed({
+      shirt: SHIRTS[rng.int(0, SHIRTS.length - 1)],
+      pants: PANTS[rng.int(0, PANTS.length - 1)],
+      skin: SKINS[rng.int(0, SKINS.length - 1)],
+      scale: 0.92 + rng.next() * 0.16,
     });
+    const side = i % 2 === 0 ? 1 : -1;
+    ped.position.set(
+      origin.x + dir.x * i * spacing + dir.z * side * (2.2 + rng.range(0, 2.5)),
+      0,
+      origin.z + dir.z * i * spacing - dir.x * side * (2.2 + rng.range(0, 2.5)),
+    );
+    ped.rotation.y = rng.range(0, Math.PI * 2);
+    scene.add(ped);
+    peds.push(ped);
   }
-}
-
-export function updatePeds(dt) {
-  for (const ped of S.peds) {
-    if (ped.hp <= 0) {
-      ped.mesh.rotation.x = Math.max(ped.mesh.rotation.x, -Math.PI / 2);
-      ped.mesh.rotation.x = -Math.PI / 2;
-      continue;
-    }
-    if (ped.wait > 0) { ped.wait -= dt; continue; }
-    const p = ped.mesh.position;
-    const d = ped.target.clone().sub(p); d.y = 0;
-    if (d.length() < 1.5) {
-      ped.wait = Math.random() * 3;
-      ped.target.set((Math.random() * 360 - 180), 0, (Math.random() * 360 - 180));
-      continue;
-    }
-    d.normalize();
-    p.addScaledVector(d, ped.speed * dt);
-    ped.mesh.rotation.y = Math.atan2(d.x, d.z);
-    ped.walkPhase += dt * ped.speed * 3.2;
-    const sw = Math.sin(ped.walkPhase) * 0.45;
-    ped.mesh.userData.legL.rotation.x = sw;
-    ped.mesh.userData.legR.rotation.x = -sw;
-  }
-}
-
-// --- player on foot ---
-export function movePlayerOnFoot(dt, fwd, strafe, run) {
-  const p = S.player;
-  const camYaw = S.camYaw;
-  // camera-relative move dir
-  const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
-  const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
-  let mx = fx * fwd + rx * strafe;
-  let mz = fz * fwd + rz * strafe;
-  const len = Math.hypot(mx, mz);
-  if (len > 0.01) {
-    mx /= len; mz /= len;
-    const speed = run ? 9 : 5;
-    p.pos.x += mx * speed * dt;
-    p.pos.z += mz * speed * dt;
-    p.heading = Math.atan2(mx, mz);
-    p.speed = speed;
-    p.pos.x = THREE.MathUtils.clamp(p.pos.x, -196, 194);
-    p.pos.z = THREE.MathUtils.clamp(p.pos.z, -196, 196);
-  } else {
-    p.speed = 0;
-  }
-  const mesh = S.playerMesh;
-  if (mesh) {
-    mesh.position.copy(p.pos);
-    mesh.rotation.y = p.heading;
-    const bob = p.speed > 0 ? Math.sin(S.time * 11) * 0.5 : 0;
-    mesh.userData.legL.rotation.x = bob;
-    mesh.userData.legR.rotation.x = -bob;
-    mesh.scale.y = p.inCover ? 0.72 : 1;
-  }
-}
-
-// --- crew ---
-const CREW_DEFS = {
-  jax: { name: 'Jax', role: 'Driver', shirt: 0xd43d2a, perk: 'NOS refills 2× faster' },
-  mara: { name: 'Mara', role: 'Shooter', shirt: 0x8a5fd4, perk: 'Cover fire on nearby cops' },
-  reyes: { name: 'Reyes', role: 'Fixer', shirt: 0x37d67a, perk: 'Slowly repairs your car' },
-};
-
-export function crewNames() {
-  return Object.keys(CREW_DEFS).filter((k) => S.crew[k]).map((k) => CREW_DEFS[k].name);
-}
-
-export function crewPerks() {
-  return Object.keys(CREW_DEFS).filter((k) => S.crew[k]).map((k) => `${CREW_DEFS[k].name}: ${CREW_DEFS[k].perk}`);
-}
-
-export function recruitCrew(key) {
-  if (S.crew[key]) return;
-  S.crew[key] = true;
-  const def = CREW_DEFS[key];
-  const mesh = makeHumanoid(def.shirt);
-  mesh.position.copy(S.player.pos).add(new THREE.Vector3(2, 0, 2));
-  S.scene.add(mesh);
-  S.followers.push({ key, name: def.name, mesh, fireT: 0, riding: false });
-  sfx('pickup');
-}
-
-export function updateCrew(dt) {
-  for (const f of S.followers) {
-    if (S.player.onFoot === false) {
-      // riding along: hidden while the player drives
-      f.mesh.visible = false;
-      f.riding = true;
-      continue;
-    }
-    if (f.riding) {
-      f.mesh.position.copy(S.player.pos).add(new THREE.Vector3(1.5, 0, 1.5));
-      f.riding = false;
-    }
-    f.mesh.visible = true;
-    const p = f.mesh.position;
-    const idx = S.followers.indexOf(f);
-    const off = new THREE.Vector3(Math.sin(S.player.heading + 2.4 + idx) * 2.2, 0, Math.cos(S.player.heading + 2.4 + idx) * 2.2);
-    const target = S.player.pos.clone().add(off);
-    const d = target.clone().sub(p); d.y = 0;
-    const dist = d.length();
-    if (dist > 0.4) {
-      d.normalize();
-      const sp = dist > 12 ? 12 : 6.5;
-      p.addScaledVector(d, Math.min(sp * dt, dist));
-      f.mesh.rotation.y = Math.atan2(d.x, d.z);
-      const sw = Math.sin(S.time * 10 + idx * 2) * 0.45;
-      f.mesh.userData.legL.rotation.x = sw;
-      f.mesh.userData.legR.rotation.x = -sw;
-    }
-    // Mara lays down cover fire on nearby cops
-    if (f.key === 'mara') {
-      f.fireT -= dt;
-      let nearest = null, bd = 26;
-      for (const cop of S.cops) {
-        if (cop.hp <= 0) continue;
-        const dd = cop.mesh.position.distanceTo(p);
-        if (dd < bd) { bd = dd; nearest = cop; }
-      }
-      if (nearest && f.fireT <= 0) {
-        f.fireT = 1.15;
-        const from = p.clone().add(new THREE.Vector3(0, 1.4, 0));
-        const to = nearest.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0));
-        tracerFX(from, to);
-        sfx('shoot-smg');
-        damageCop(nearest, 14);
-      }
-    }
-  }
-}
-
-// --- mission shoot targets ---
-export function spawnTarget(x, z) {
-  const mesh = makeHumanoid(0x111111, 0x111111, 0xd8b48a);
-  mesh.userData.torso.material = new THREE.MeshStandardMaterial({ color: 0x881111, roughness: 0.9 });
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.09, 8, 20),
-    new THREE.MeshBasicMaterial({ color: 0xff2222 }));
-  ring.rotation.x = Math.PI / 2; ring.position.y = 0.15;
-  mesh.add(ring);
-  mesh.position.set(x, 0, z);
-  S.scene.add(mesh);
-  const t = { mesh, hp: 30, ring };
-  S.targets.push(t);
-  return t;
-}
-
-export function clearTargets() {
-  for (const t of S.targets) S.scene.remove(t.mesh);
-  S.targets = [];
-}
-
-export function updateTargets(dt) {
-  for (const t of S.targets) {
-    if (t.hp <= 0) continue;
-    // targets strafe nervously around their spot
-    t.mesh.position.x += Math.sin(S.time * 1.3 + t.mesh.position.z) * dt * 0.8;
-    t.ring.rotation.z += dt * 2;
-  }
-}
-
-export function damageTarget(t, dmg) {
-  t.hp -= dmg;
-  burst(t.mesh.position.x, t.mesh.position.y + 1.2, t.mesh.position.z, 6, 4, 0.4, () => [1, 0.2, 0.2]);
-  if (t.hp <= 0) {
-    t.mesh.rotation.x = -Math.PI / 2;
-    t.ring.visible = false;
-  }
+  return peds;
 }

@@ -1,85 +1,63 @@
-// Neon Bay — shared mutable game state. Every module reads/writes this
-// one object, so the wiring stays flat: boot.js owns the loop, the sim
-// modules own their slice of S. No module imports boot.js.
-import * as THREE from 'three';
+// Game state — money, wanted, missions, crew, respect, hurricane countdown, radio.
+import { MISSIONS } from '../story/missions.js';
 
-export const STORM_SECONDS = 1200; // 20-minute hurricane countdown
-export const WORLD_HALF = 200;     // island spans -200..200 on x and z
-export const ROAD_STEP = 40;       // streets every 40 units
+export const CREW_DEFS = [
+  { name: 'MARA', role: 'HACKER', skill: 'Doors & cameras open 2x faster', color: '#ff5e8a', hair: '#2b1a12', skin: '#e8b98a', shirt: '#7a2b4d', health: 100 },
+  { name: 'JAX', role: 'DRIVER', skill: 'NOS lasts 40% longer', color: '#2ee6ff', hair: '#111111', skin: '#c98d5f', shirt: '#0e4d5c', health: 100 },
+  { name: 'REYES', role: 'GUNNER', skill: 'Reload 30% faster, +1 armor', color: '#ffb03c', hair: '#3a2a18', skin: '#a9713f', shirt: '#4d3a10', health: 100 },
+];
 
-export const S = {
-  seed: 1,
-  rng: null,
-  scene: null,
-  camera: null,
-  renderer: null,
-  started: false,
-  paused: false,
-  muted: false,
-  time: 0,          // seconds since run start
-  storm: 0,         // 0..1 hurricane progress (time / STORM_SECONDS)
-  cash: 500,
-  respect: 0,       // 0..100
-  wanted: 0,        // float, 0..5 stars shown as ceil
-  hp: 100,
-  armor: 0,
-  missionIdx: 0,
-  mission: null,    // runtime mission state object (see story/missions.js)
-  missionDone: new Array(16).fill(false),
-  crew: { jax: false, mara: false, reyes: false },
-  followers: [],    // crew follower rigs
-  upgrades: { engine: 0, tires: 0, nos: 0, armor: 0 },
-  nos: 100,         // 0..100 NOS meter
-  nosActive: false,
-  weapon: 0,        // index into WEAPONS
-  ammo: [12, 90, 24, 10],
-  reserve: [48, 240, 48, 20],
-  player: {
-    pos: new THREE.Vector3(0, 0, 24),
-    heading: 0,
-    speed: 0,
-    hp: 100,
-    onFoot: true,
-    car: null,
-    inCover: false,
-    vel: new THREE.Vector3(),
-  },
-  cars: [],         // every drivable car rig
-  traffic: [],      // traffic car rigs (subset of cars)
-  peds: [],         // pedestrian rigs
-  cops: [],         // police rigs (car or foot)
-  heli: null,       // helicopter rig or null
-  roadblocks: [],   // roadblock rigs
-  targets: [],      // mission shoot targets
-  city: null,       // built by city/island.js
-  fx: null,         // particle system (fx/particles.js)
-  camYaw: 0,
-  camPitch: 0.34,
-  camDist: 9.5,
-  camSnap: false,   // first-frame camera snap for staged shots
-  shot: null,       // ?shot= staging name
-  shotCam: false,   // fixed cinematic camera for the cover shot
-  shotNos: false,   // staged NOS flame for the cover shot
-  radio: 0,         // station index 0..3
-  objective: '',
-  prompt: '',       // contextual key prompt ("E — enter car")
-  promptKey: '',
-  stats: { shots: 0, hits: 0, exploded: 0, robbed: 0 },
-  over: false,
-};
+export const WEAPONS = [
+  { name: 'PISTOL', ammo: 48, mag: 12 },
+  { name: 'SMG', ammo: 180, mag: 32 },
+  { name: 'SHOTGUN', ammo: 40, mag: 6 },
+  { name: 'RIFLE', ammo: 120, mag: 30 },
+];
 
-export function stars() {
-  return Math.min(5, Math.max(0, Math.ceil(S.wanted - 0.001)));
+export function createState() {
+  return {
+    money: 5240,
+    respect: 42,
+    missionIndex: 4, // 0-based: mission 5 of 16 active
+    completed: [true, true, true, true],
+    wanted: 4,
+    crew: CREW_DEFS.map((c) => ({ ...c, recruited: true })),
+    garage: ['CORAL GT'],
+    radio: 0,
+    weaponIndex: 1,
+    stormMinutesLeft: 19.7,
+    speedKmh: 0,
+    onFoot: false,
+    paused: false,
+    started: false,
+    timeOfDay: 17.4, // golden hour, 17:24
+    minimapRoute: 0, // 0..1 progress along the Shot 1→4 route
+  };
 }
 
-export function addCash(n) {
-  S.cash = Math.max(0, S.cash + n);
+export function currentMission(state) {
+  return MISSIONS[Math.min(state.missionIndex, MISSIONS.length - 1)];
 }
 
-export function addRespect(n) {
-  S.respect = Math.min(100, Math.max(0, S.respect + n));
+export function completeMission(state) {
+  const m = currentMission(state);
+  state.completed.push(true);
+  state.money += m.payout;
+  state.respect = Math.min(100, state.respect + m.respect);
+  if (state.missionIndex < MISSIONS.length - 1) state.missionIndex += 1;
+  return m;
 }
 
-export function setWanted(n) {
-  S.wanted = Math.min(5, Math.max(0, n));
+export function addWanted(state, stars) {
+  state.wanted = Math.max(0, Math.min(5, state.wanted + stars));
+}
+
+export function applySave(state, data) {
+  if (!data) return;
+  state.money = data.money; state.respect = data.respect;
+  state.missionIndex = data.missionIndex; state.completed = data.completed;
+  state.wanted = data.wanted; state.radio = data.radio;
+  state.stormMinutesLeft = data.stormMinutesLeft;
+  if (data.garage) state.garage = data.garage;
+  if (data.crew) data.crew.forEach((c, i) => { if (state.crew[i]) { state.crew[i].health = c.health; state.crew[i].recruited = c.recruited; } });
 }

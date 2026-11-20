@@ -1,20 +1,19 @@
-// Neon Bay — localStorage save. Cash, missions, respect, upgrades,
-// crew, hurricane clock. Versioned key so old rounds never load.
-import { S } from './state.js';
+// Save / load — localStorage, one slot, survives reloads.
+const KEY = 'neonbay.save.v1';
 
-const KEY = 'neonbay-save-v5';
-
-export function saveGame() {
+export function saveGame(state) {
   try {
     const data = {
-      cash: S.cash,
-      respect: S.respect,
-      missionIdx: S.missionIdx,
-      missionDone: S.missionDone,
-      crew: S.crew,
-      upgrades: S.upgrades,
-      time: S.time,
-      hp: S.player.hp,
+      money: state.money,
+      respect: state.respect,
+      missionIndex: state.missionIndex,
+      completed: state.completed.slice(),
+      wanted: state.wanted,
+      crew: state.crew.map((c) => ({ name: c.name, health: c.health, recruited: c.recruited })),
+      garage: state.garage.slice(),
+      radio: state.radio,
+      stormMinutesLeft: state.stormMinutesLeft,
+      savedAt: Date.now(),
     };
     localStorage.setItem(KEY, JSON.stringify(data));
     return true;
@@ -25,25 +24,12 @@ export function loadGame() {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const d = JSON.parse(raw);
-    if (typeof d.cash !== 'number' || !Array.isArray(d.missionDone)) return null;
-    S.cash = d.cash;
-    S.respect = d.respect || 0;
-    S.missionIdx = Math.min(15, d.missionIdx || 0);
-    S.missionDone = d.missionDone.slice(0, 16);
-    while (S.missionDone.length < 16) S.missionDone.push(false);
-    S.crew = { jax: !!d.crew?.jax, mara: !!d.crew?.mara, reyes: !!d.crew?.reyes };
-    S.upgrades = { engine: 0, tires: 0, nos: 0, armor: 0, ...(d.upgrades || {}) };
-    S.time = d.time || 0;
-    S.player.hp = d.hp || 100;
-    return d;
+    const data = JSON.parse(raw);
+    if (typeof data.money !== 'number') return null;
+    return data;
   } catch (e) { return null; }
 }
 
-export function hasSave() {
-  try { return !!localStorage.getItem(KEY); } catch (e) { return false; }
-}
-
 export function clearSave() {
-  try { localStorage.removeItem(KEY); } catch (e) {}
+  try { localStorage.removeItem(KEY); } catch (e) { /* no storage */ }
 }

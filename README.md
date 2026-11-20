@@ -1,84 +1,38 @@
-# Neon Bay — 16 story missions, 3D open-world island city, 5-star police with heli + SWAT, weapon wheel, garage + NOS, shops + safehouses, exploding cars, crew perks, hurricane countdown
+# Neon Bay — 16 missions, 5-star BCPD, hurricane countdown
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/sixthin016/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/sixthin016/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-An original 3D open-world crime game that plays offline in a desktop browser
-from static files. No Rockstar names, maps, or assets — Neon Bay is its own
-sunny island city with a beach and open water to the east, five named
-districts, and a hurricane bearing down on it.
+An open-world crime game in the spirit of GTA 6, set on Coral Isle at golden hour: drive, steal, shoot and outrun the Bay City Police Department with your crew as a hurricane closes in. Runs offline in a desktop browser from static files (`game/index.html`), three.js vendored under `game/vendor/`. No Rockstar names, art or assets — everything is original.
 
-## The game
+## Features
 
-You are a newcomer trying to make a name in Neon Bay before the storm hits.
-Rook runs a garage on the edge of The Strip; Mara, Jax, and Reyes join your
-crew as the story unfolds across four acts and sixteen missions — an intro
-job, car thefts, a street race, lookout hits, blackouts, levee runs, a shop
-robbery, a 45-second last stand against SWAT, and a finale at the radio tower.
+- 16 story missions across 5 districts (Beachfront, Downtown, Old Market, Marina, Hills), with a hurricane landfall countdown.
+- 5-star BCPD wanted system: patrol cruisers, roadblocks with spike strips, Air One helicopter with searchlight, SWAT rappel teams, Rhino tank.
+- Crew with perks: Mara the hacker, Jax the driver (NOS +40%), Reyes the gunner — portraits + health on the HUD.
+- Garage + NOS boost, weapon wheel with 4 guns (pistol, SMG, shotgun, rifle), 4 radio stations, shops + safehouses, respect progression.
+- Living city: traffic, pedestrians, palms, markets, neon signs, wet-reflection roads, exploding cars, localStorage save.
 
-The Bay City PD (BCPD) answers in five escalating stars: patrol cars chase,
-roadblocks cut the streets, Air One circles overhead with a spotlight that
-keeps the heat on, and at five stars a SWAT van rolls in with two armed cops.
-Lay low and the stars decay — unless the helicopter is still up.
+## Screenshot proof (what each shot shows)
 
-## Systems
-
-- **World** — low-poly island city, five districts, traffic on a street grid,
-  pedestrians, palms, neon signs, a golden-hour sky shader, seeded city
-  generation (`?seed=N` fixes the city and traffic).
-- **Missions** — 16 story missions: go-to, 8-checkpoint street race, shoot
-  targets, survive, defend, rob a shop and lose the cops, steal and deliver.
-  Respect rises with each job; getting busted or wasted costs respect and cash.
-- **Police** — 5-star escalation with patrol cars, roadblocks, helicopter,
-  and SWAT; wanted decays when hidden.
-- **Combat** — weapon wheel (Q, or keys 1–4) with pistol, SMG, shotgun, and
-  sniper; tracers, reloads, and cover (C) that makes cops shoot worse.
-- **Cars** — steal any car (E), arcade driving, garage upgrades (engine,
-  tires, NOS, armor) bought with cash, NOS boost on SPACE with a flame cone
-  and a meter that drains and refills. Shot or rammed cars smoke, then
-  explode — fireball, damage radius, wrecks stay blackened and undrivable.
-- **Crew** — Jax (NOS refills twice as fast), Mara (cover fire on nearby
-  cops), Reyes (slowly repairs your car). They follow you on foot and show
-  on the HUD and minimap.
-- **Places** — two shops (ammo, armor, snacks) and two safehouses (pay $100
-  to save and clear wanted), all marked on the minimap.
-- **Hurricane** — a 20-minute countdown: the sky darkens, rain arrives,
-  palms bend, and the streets turn wet with puddle reflections.
-- **Sound** — four procedural radio stations (R to cycle), heli rotor,
-  per-weapon gunshots, NOS whoosh, explosions. All synthesized WebAudio,
-  zero audio files.
-- **HUD + minimap** — district-tinted minimap with checkpoints, roadblocks,
-  heli, crew, and place markers; wanted stars, cash, respect, objective,
-  weapon and NOS meter. Saves to localStorage.
-
-## Controls
-
-WASD move / drive · SHIFT run · E enter or exit a car · SPACE NOS boost ·
-mouse drag orbits the camera, click shoots · Q weapon wheel, 1–4 pick a gun ·
-C take cover · X reload · R radio · M mute · G garage, B shop, H safehouse ·
-ESC pause · ENTER retry a failed mission.
-
-## How it is built
-
-Plain static files under `game/`, one HTML page, ES modules, three.js
-vendored under `game/vendor/`, procedural WebAudio, zero assets, zero
-network requests. The source is split by job: `core/` (seeded RNG, shared
-state, input, sound, save), `city/` (island builder, districts), `sim/`
-(cars, people, police, weapons, economy), `story/` (missions), `fx/`
-(particles), `ui/` (HUD and minimap), with `boot.js` wiring the loop.
+1. Beach chase — 5-star PIT pursuit: 3 BCPD cruisers overlapping the hero car's rear quarter, tire smoke, 12+ debris, Air One heli with rotor blur + searchlight cone; HUD 128 km/h, "5/6 DELIVER", $5.240, ★★★★☆, GPS phone in the driver's hand.
+2. Market battle — on-foot combat in 3 depth planes: barrier with 7 bullet holes + blood, muzzle flashes + 6 shells in the air, 5 police bounding overwatch + 2 SWAT descending rappel ropes under the heli; HUD "5/6 DEFEND", $5.890, ★★★★★, crew health MARA 78 / JAX 92 / REYES 100.
+3. Heist interior — server farm: PROTOTYPE drive with red LED, laptop hacking minigame 3/4 nodes timer 0:47, 8-beam laser grid, hacker at the laptop, gunner at the door, getaway car + driver through the garage door; HUD "6/6 EXTRACT", $9.600, ★★★★★.
+4. Stacked highway escape — Bell 412 gunner heli mid-frame, hero car on the lower deck with 6 swerving cars, upper-deck blockade with spike strip + 4 cruisers + Rhino tank, 12-tower lit skyline + crane; HUD "6/6 ESCAPE", $12.450, ★★★★★, cockpit HUD "ESCAPE 2.3km" through the heli door.
 
 ## Run it
 
 ```sh
-node serve.ts
-# open http://localhost:8080
+node serve.ts        # serves game/ on http://localhost:8080
 ```
 
-`main.ts` hands the game in for make.fun: it copies `game/` and
-`screenshots/` to the output directory and writes `dossier.json`.
-Screenshots are staged with `?shot=start|drive|mission|title&seed=1`.
+Play: WASD drive/walk, E enter/exit car, SHIFT NOS, SPACE brake, 1–4 weapons, Q radio, mouse click to shoot on foot. Screenshots: open `?shot=1` … `?shot=4` (see `shots.json`).
 
-## License
+## Hand in
 
-MIT — see LICENSE.
+```sh
+mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+```
+
+`main.ts` copies `game/` + `screenshots/` to the output dir and writes `dossier.json` with the vendored make.fun library.

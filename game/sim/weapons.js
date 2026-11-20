@@ -1,130 +1,103 @@
-// Neon Bay — weapon wheel + 4 guns. Pistol / SMG / shotgun / sniper with
-// distinct damage, fire rate, spread, pellets, range, magazine and
-// reload. Click to shoot from the crosshair; tracers; C to take cover
-// (cops shoot worse while you are in cover).
+// Weapons — 4 guns, muzzle flash, ejected shells, tracer lines.
+// The weapon wheel (hold TAB in play mode) lists all four with ammo.
 import * as THREE from 'three';
-import { S } from '../core/state.js';
-import { tracerFX, muzzleFX, burst } from '../fx/particles.js';
-import { sfx } from '../core/sound.js';
-import { damageCar } from './cars.js';
-import { damageCop } from './police.js';
-import { damageTarget } from './people.js';
+import { WEAPONS } from '../core/state.js';
 
-export const WEAPONS = [
-  { name: 'Pistol', damage: 12, rate: 0.28, spread: 0.012, pellets: 1, range: 60, mag: 12, reload: 1.0, sfx: 'shoot-pistol', color: 0x888888 },
-  { name: 'SMG', damage: 8, rate: 0.09, spread: 0.035, pellets: 1, range: 45, mag: 32, reload: 1.3, sfx: 'shoot-smg', color: 0x333333 },
-  { name: 'Shotgun', damage: 9, rate: 0.85, spread: 0.09, pellets: 6, range: 26, mag: 6, reload: 1.8, sfx: 'shoot-shotgun', color: 0x6b4a22 },
-  { name: 'Sniper', damage: 70, rate: 1.3, spread: 0.001, pellets: 1, range: 140, mag: 5, reload: 2.2, sfx: 'shoot-sniper', color: 0x224422 },
-];
-
-let cooldown = 0;
-let reloading = 0;
-const raycaster = new THREE.Raycaster();
-
-export function weaponName() { return WEAPONS[S.weapon].name; }
-export function isReloading() { return reloading > 0; }
-
-export function selectWeapon(i) {
-  if (i < 0 || i >= WEAPONS.length) return;
-  S.weapon = i;
-  reloading = 0;
-  sfx('pickup');
-}
-
-export function buyAmmo() {
-  const w = WEAPONS[S.weapon];
-  const cost = 40;
-  if (S.cash < cost) return false;
-  S.cash -= cost;
-  S.reserve[S.weapon] += w.mag * 3;
-  sfx('cash');
-  return true;
-}
-
-export function startReload() {
-  const w = WEAPONS[S.weapon];
-  if (reloading > 0 || S.ammo[S.weapon] >= w.mag || S.reserve[S.weapon] <= 0) return;
-  reloading = w.reload;
-  sfx('reload');
-}
-
-function finishReload() {
-  const w = WEAPONS[S.weapon];
-  const need = w.mag - S.ammo[S.weapon];
-  const take = Math.min(need, S.reserve[S.weapon]);
-  S.ammo[S.weapon] += take;
-  S.reserve[S.weapon] -= take;
-}
-
-function muzzleWorld() {
-  // shoot from the camera (crosshair) so aiming always matches the view
-  const dir = new THREE.Vector3();
-  S.camera.getWorldDirection(dir);
-  const origin = S.camera.position.clone().addScaledVector(dir, 1.2);
-  origin.y -= 0.25;
-  return { origin, dir };
-}
-
-export function tryShoot() {
-  if (cooldown > 0 || reloading > 0 || S.paused || !S.started) return false;
-  const w = WEAPONS[S.weapon];
-  if (S.ammo[S.weapon] <= 0) { startReload(); return false; }
-  cooldown = w.rate;
-  S.ammo[S.weapon]--;
-  S.stats.shots++;
-  sfx(w.sfx);
-  const { origin, dir } = muzzleWorld();
-  muzzleFX(origin, dir);
-  let hitAnything = false;
-  for (let p = 0; p < w.pellets; p++) {
-    const spreadDir = dir.clone();
-    spreadDir.x += (Math.random() - 0.5) * w.spread * 2;
-    spreadDir.y += (Math.random() - 0.5) * w.spread * 2;
-    spreadDir.z += (Math.random() - 0.5) * w.spread * 2;
-    spreadDir.normalize();
-    raycaster.set(origin, spreadDir);
-    raycaster.far = w.range;
-    // collect shootable meshes: cops, targets, cars, peds
-    const meshes = [];
-    for (const c of S.cops) if (c.kind !== 'van') meshes.push(c.mesh);
-    for (const t of S.targets) if (t.hp > 0) meshes.push(t.mesh);
-    for (const car of S.cars) if (!car.wrecked) meshes.push(car.mesh);
-    for (const ped of S.peds) if (ped.hp > 0) meshes.push(ped.mesh);
-    const hits = raycaster.intersectObjects(meshes, true);
-    let end = origin.clone().addScaledVector(spreadDir, w.range);
-    if (hits.length > 0) {
-      const h = hits[0];
-      end = h.point.clone();
-      hitAnything = true;
-      S.stats.hits++;
-      // resolve which rig was hit by walking up to a registered mesh
-      let node = h.object;
-      while (node && !meshes.includes(node)) node = node.parent;
-      if (node) {
-        const cop = S.cops.find((c) => c.mesh === node);
-        const target = S.targets.find((t) => t.mesh === node);
-        const car = S.cars.find((c) => c.mesh === node);
-        const ped = S.peds.find((x) => x.mesh === node);
-        if (cop) damageCop(cop, w.damage);
-        else if (target) damageTarget(target, w.damage);
-        else if (car) damageCar(car, w.damage, true);
-        else if (ped) { ped.hp -= w.damage; burst(h.point.x, h.point.y, h.point.z, 5, 3, 0.3, () => [1, 0.2, 0.2]); }
-      }
-    }
-    tracerFX(origin, end);
+export function makeGunModel(index) {
+  const g = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.45, metalness: 0.6 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6a3a1a, roughness: 0.8 });
+  if (index === 0) { // pistol
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.34), dark);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.1), wood);
+    grip.position.set(0, -0.12, -0.1); grip.rotation.x = 0.3;
+    g.add(body, grip);
+  } else if (index === 1) { // SMG
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.62), dark);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.24, 0.1), dark);
+    mag.position.set(0, -0.16, 0.05);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.24), dark);
+    stock.position.set(0, 0, -0.4);
+    g.add(body, mag, stock);
+  } else if (index === 2) { // shotgun
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 8), dark);
+    barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.02, 0.3);
+    const pump = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.3), wood);
+    pump.position.set(0, -0.04, 0.28);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.3), wood);
+    stock.position.set(0, -0.02, -0.35);
+    g.add(barrel, pump, stock);
+  } else { // rifle
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.85), dark);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.12), dark);
+    mag.position.set(0, -0.16, 0.1); mag.rotation.x = 0.25;
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.09, 0.16), dark);
+    sight.position.set(0, 0.11, 0.05);
+    g.add(body, mag, sight);
   }
-  if (hitAnything) sfx('hit');
-  return true;
+  return g;
 }
 
-export function updateWeapons(dt) {
-  cooldown = Math.max(0, cooldown - dt);
-  if (reloading > 0) {
-    reloading -= dt;
-    if (reloading <= 0) { reloading = 0; finishReload(); }
-  }
+// A muzzle flash: additive radial sprite, always faces the camera —
+// a flat plane reads as a paper sheet at frame scale.
+let flashTex = null;
+function getFlashTexture() {
+  if (flashTex) return flashTex;
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 2, 64, 64, 62);
+  grad.addColorStop(0, 'rgba(255,250,220,1)');
+  grad.addColorStop(0.35, 'rgba(255,215,94,0.9)');
+  grad.addColorStop(1, 'rgba(255,150,40,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  // star spikes
+  g.strokeStyle = 'rgba(255,230,150,0.9)'; g.lineWidth = 6;
+  g.beginPath(); g.moveTo(64, 6); g.lineTo(64, 122); g.moveTo(6, 64); g.lineTo(122, 64); g.stroke();
+  flashTex = new THREE.CanvasTexture(c);
+  return flashTex;
+}
+export function makeMuzzleFlash() {
+  const flash = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: getFlashTexture(), transparent: true, opacity: 0.95,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  flash.scale.setScalar(0.85);
+  flash.visible = false;
+  return flash;
 }
 
-export function toggleCover() {
-  S.player.inCover = !S.player.inCover;
+// 6 ejected shell casings frozen mid-air (brass, tumbling).
+export function makeShells(scene, origin) {
+  const shells = new THREE.Group();
+  const brass = new THREE.MeshStandardMaterial({ color: 0xd8a83c, metalness: 0.9, roughness: 0.3 });
+  const spots = [
+    [0.4, 0.9, 0.3], [0.7, 1.2, -0.2], [0.2, 1.4, 0.5],
+    [0.9, 0.7, 0.4], [0.5, 1.6, -0.4], [1.1, 1.0, 0.1],
+  ];
+  spots.forEach(([x, y, z], i) => {
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.07, 6), brass);
+    s.position.set(origin.x + x, origin.y + y, origin.z + z);
+    s.rotation.set(i * 1.1, i * 0.7, i * 1.7);
+    shells.add(s);
+  });
+  scene.add(shells);
+  return shells;
+}
+
+// Tracer line from a barrel to a target point.
+export function makeTracer(from, to) {
+  const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color: 0xffe9a8, transparent: true, opacity: 0.8,
+  }));
+  return line;
+}
+
+export function weaponName(state) {
+  return WEAPONS[state.weaponIndex].name;
+}
+export function weaponAmmo(state) {
+  const w = WEAPONS[state.weaponIndex];
+  return `${w.mag} / ${w.ammo}`;
 }
