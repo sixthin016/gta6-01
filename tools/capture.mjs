@@ -1,46 +1,65 @@
-// tools/capture.mjs — takes the four staged screenshots of Neon Bay.
-// Serves game/ with serve.ts, loads ?shot=N in headless Chromium, waits
-// for the game's ready flag, and writes a 1280x720 JPEG per shot.
-// Usage: node tools/capture.mjs   (run from the repo root)
-import { chromium } from 'playwright-core';
+// Neon Bay — tools/capture.mjs: takes the four staged screenshots.
+// Serves game/ on a local port, opens each ?shot= URL in headless
+// Chromium (Playwright), waits for the game to render, and saves a
+// 1280x720 JPEG into screenshots/.
+//
+//   node tools/capture.mjs
+//
+// Requires the `playwright` package and a Chromium build
+// (npx playwright install chromium). The game itself needs no network:
+// the page makes zero requests outside localhost.
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const shots = JSON.parse(readFileSync(new URL('../shots.json', import.meta.url), 'utf8')).shots;
-const PORT = 8130;
-// --only=2 retakes a single shot (handy after reframing one camera).
-const onlyArg = process.argv.find((a) => a.startsWith('--only='));
-const only = onlyArg ? parseInt(onlyArg.split('=')[1], 10) : 0;
-const todo = shots.map((s, i) => ({ ...s, n: i + 1 })).filter((s) => !only || s.n === only);
-if (!todo.length) { console.error(`no shot ${only}`); process.exit(2); }
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const shots = JSON.parse(readFileSync(join(root, 'shots.json'), 'utf8'));
+const PORT = Number(process.env.PORT ?? 8091);
 
-const server = spawn('node', ['serve.ts', `--port=${PORT}`], { stdio: 'ignore' });
-await new Promise((r) => setTimeout(r, 1800));
-
-const browser = await chromium.launch({
-  executablePath: '/home/hatch/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome',
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-sandbox', '--no-sandbox'],
-});
-
-const errors = [];
-try {
-  for (const shot of todo) {
-    const i = shot.n - 1;
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-    page.on('pageerror', (e) => errors.push(`shot ${shot.n}: ${e.message.slice(0, 200)}`));
-    page.on('console', (m) => {
-      if (m.type() === 'error') errors.push(`shot ${shot.n} console: ${m.text().slice(0, 200)}`);
+function serve() {
+  return new Promise((resolveServe, rejectServe) => {
+    const child = spawn(process.execPath, [join(root, 'serve.ts'), ], {
+      env: { ...process.env, PORT: String(PORT) },
+      stdio: 'ignore',
     });
-    await page.goto(`http://127.0.0.1:${PORT}/index.html?shot=${shot.n}`, { waitUntil: 'load', timeout: 60000 });
-    await page.waitForFunction(() => window.__NB && window.__NB.ready, null, { timeout: 30000 });
-    await page.waitForTimeout(2500); // let the heli, rain and lamps settle
-    await page.screenshot({ path: `screenshots/${shot.file}`, type: 'jpeg', quality: 82 });
-    console.log(`shot ${shot.n} ${shot.file}: ${shot.title}`);
-    await page.close();
-  }
-} finally {
-  await browser.close();
-  server.kill();
+    child.on('error', rejectServe);
+    setTimeout(() => resolveServe(child), 1200);
+  });
 }
-console.log(errors.length ? `ERRORS:\n${errors.join('\n')}` : 'no page errors');
-process.exit(errors.length ? 1 : 0);
+
+async function main() {
+  const { chromium } = await import('playwright');
+  const server = await serve();
+  const browser = await chromium.launch();
+  try {
+    for (const shot of shots.shots) {
+      const page = await browser.newPage({ viewport: { width: shots.width, height: shots.height } });
+      const errors = [];
+      page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
+      page.on('pageerror', (err) => errors.push(String(err)));
+      const url = shot.url.replace('http://localhost:8080', `http://localhost:${PORT}`);
+      await page.goto(url, { waitUntil: 'load' });
+      await page.waitForFunction(() => window.__NEONBAY__ && window.__NEONBAY__.ready, null, { timeout: 20000 });
+      await page.waitForTimeout(2500);
+      const out = join(root, 'screenshots', shot.file);
+      await page.screenshot({ path: out, type: 'jpeg', quality: 88 });
+      const state = await page.evaluate(() => ({
+        errors: window.__NEONBAY__.errors,
+        frames: window.__NEONBAY__.frames,
+      }));
+      console.log(`${shot.file}: frames=${state.frames} consoleErrors=${errors.length + state.errors.length}`);
+      if (errors.length || state.errors.length) console.warn('  errors:', [...errors, ...state.errors].slice(0, 5));
+      await page.close();
+    }
+  } finally {
+    await browser.close();
+    server.kill();
+  }
+  console.log('Neon Bay: screenshots done.');
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
