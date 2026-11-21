@@ -1,31 +1,33 @@
-// main.ts — Neon Bay's hand-in program (Node 22, standard library only).
-// It copies the playable game (game/) and its four screenshots
-// (screenshots/) into the output directory and writes the dossier the
-// scorer checks, using the kit's buildDossier verbatim.
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// main.ts — Neon Bay round 10 entry program (Node 22, stdlib only).
+// Copies game/ and screenshots/ from this repository to /output and
+// writes /output/dossier.json with the kit's buildDossier. Outside the
+// grader, MAKEFUN_OUTPUT_DIR stands in for /output.
 import { buildDossier } from './vendor/makefun-game.ts';
+import { cpSync, mkdirSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const repoRoot = dirname(fileURLToPath(import.meta.url));
-const outDir = process.env.MAKEFUN_OUTPUT_DIR || '/output';
+const repo = dirname(fileURLToPath(import.meta.url));
+const out = process.env.MAKEFUN_OUTPUT_DIR || '/output';
 
-function copyTree(name: string): void {
-  const src = join(repoRoot, name);
-  const dst = join(outDir, name);
-  if (!existsSync(src)) throw new Error(`main.ts: missing ${name}/ in the repository`);
-  mkdirSync(outDir, { recursive: true });
-  cpSync(src, dst, { recursive: true, force: true });
-}
+// Start from a clean output dir so a stale file from an older round can
+// never leak into the entry (the grader runs this twice; both runs must
+// write identical bytes, and a clean slate guarantees it).
+rmSync(join(out, 'game'), { recursive: true, force: true });
+rmSync(join(out, 'screenshots'), { recursive: true, force: true });
+rmSync(join(out, 'dossier.json'), { force: true });
+mkdirSync(join(out, 'game'), { recursive: true });
+mkdirSync(join(out, 'screenshots'), { recursive: true });
+cpSync(join(repo, 'game'), join(out, 'game'), { recursive: true });
+cpSync(join(repo, 'screenshots'), join(out, 'screenshots'), { recursive: true });
 
-copyTree('game');
-copyTree('screenshots');
-
-const dossier = buildDossier(outDir, {
+const dossier = buildDossier(out, {
   text_max_bytes: 163840,
   screenshots: { max: 4, max_bytes: 262144 },
   game_max_files: 993,
   game_max_bytes: 50331648,
+  game_path_max_bytes: 1000,
 });
-writeFileSync(join(outDir, 'dossier.json'), dossier);
-console.log(`Neon Bay handed in: ${outDir}/dossier.json (${dossier.length} bytes)`);
+writeFileSync(join(out, 'dossier.json'), dossier);
+const shotNames = readdirSync(join(out, 'screenshots')).filter((f) => !f.startsWith('.'));
+console.log(`Neon Bay round 10 handed in: ${shotNames.length} screenshots, dossier ${dossier.length} bytes -> ${out}/dossier.json`);

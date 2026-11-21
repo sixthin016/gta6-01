@@ -1,133 +1,148 @@
-// combat.js — four weapons, the weapon wheel, hitscan shooting with
-// tracers, muzzle flash and shell casings, exploding cars and damage.
+// combat.js — on-foot shooting and the enemies who shoot back. Hitscan
+// with a cone check against the camera forward, tracer lines and muzzle
+// flash from fx.js, and hostile gunmen who take cover, advance, and
+// lose accuracy at range. Health regens slowly out of combat.
 import * as THREE from 'three';
-import { makeRng } from './rng.js';
-
-export const WEAPONS = [
-  { name: 'PISTOL', damage: 22, rate: 0.28, spread: 0.02, range: 90, mag: 12, reserve: 48, kind: 'pistol', auto: false },
-  { name: 'SMG', damage: 13, rate: 0.09, spread: 0.05, range: 70, mag: 32, reserve: 96, kind: 'smg', auto: true },
-  { name: 'SHOTGUN', damage: 16, rate: 0.85, spread: 0.11, range: 42, mag: 6, reserve: 24, kind: 'shotgun', auto: false, pellets: 7 },
-  { name: 'RIFLE', damage: 38, rate: 0.16, spread: 0.012, range: 160, mag: 30, reserve: 90, kind: 'rifle', auto: true },
-];
+import { makePersonMesh } from './people.js';
+import { clamp } from './rng.js';
 
 export class Combat {
   constructor(scene, fx, audio) {
     this.scene = scene;
     this.fx = fx;
     this.audio = audio;
-    this.rng = makeRng(31337);
-    this.weapons = WEAPONS.map((w) => ({ ...w, ammo: w.mag, inReserve: w.reserve }));
-    this.index = 0;
+    this.ammo = 24;
+    this.ammoReserve = 120;
+    this.health = 100;
+    this.maxHealth = 100;
     this.cooldown = 0;
-    this.tracers = [];
-    this.tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe9a3, transparent: true, opacity: 0.85 });
-    this.tracerGeo = new THREE.BoxGeometry(0.06, 0.06, 1);
+    this.reloadTimer = 0;
+    this.regenTimer = 0;
+    this.enemies = [];
+    this.kills = 0;
   }
 
-  get current() {
-    return this.weapons[this.index];
+  spawnEnemy(x, z, hp = 60) {
+    const mesh = makePersonMesh(0x1f1f2e, 0x1f1f2e);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.14, 0.38), new THREE.MeshLambertMaterial({ color: 0xff2222, emissive: 0x881111, emissiveIntensity: 0.8 }));
+    band.position.y = 1.62;
+    mesh.add(band);
+    mesh.position.set(x, 0, z);
+    this.scene.add(mesh);
+    const e = { mesh, x, z, hp, maxHp: hp, heading: 0, shootTimer: 1.5 + Math.random(), state: 'advance', hitFlash: 0 };
+    this.enemies.push(e);
+    return e;
   }
 
-  select(i) {
-    if (i >= 0 && i < this.weapons.length) this.index = i;
+  clearEnemies() {
+    for (const e of this.enemies) this.scene.remove(e.mesh);
+    this.enemies = [];
   }
 
-  cycle() {
-    this.index = (this.index + 1) % this.weapons.length;
-  }
-
-  buyAmmo(i, amount, cost) {
-    const w = this.weapons[i];
-    w.inReserve += amount;
-    return cost;
-  }
-
-  fire(origin, dir, targets, shooter) {
-    if (this.cooldown > 0) return false;
-    const w = this.current;
-    if (w.ammo <= 0) {
-      this.cooldown = 0.4;
-      return false;
+  // Player fires. Returns the enemy hit, if any.
+  shoot(origin, dir, onHit) {
+    if (this.cooldown > 0 || this.reloadTimer > 0) return null;
+    if (this.ammo <= 0) { this.reload(); return null; }
+    this.cooldown = 0.22;
+    this.ammo--;
+    this.audio.shot();
+    const muzzle = origin.clone().add(dir.clone().multiplyScalar(1.2));
+    muzzle.y = Math.max(muzzle.y, 1.3);
+    this.fx.muzzle(muzzle);
+    let best = null, bestScore = 0.94; // cos(20deg) cone
+    for (const e of this.enemies) {
+      const to = new THREE.Vector3(e.x - origin.x, 1.2 - origin.y, e.z - origin.z);
+      const d = to.length();
+      if (d > 46 || d < 0.5) continue;
+      const score = to.normalize().dot(dir);
+      if (score > bestScore) { bestScore = score; best = e; }
     }
-    w.ammo -= 1;
-    this.cooldown = w.rate;
-    const pellets = w.pellets || 1;
-    for (let p = 0; p < pellets; p++) {
-      const d = dir.clone();
-      d.x += (this.rng.next() - 0.5) * w.spread * 2;
-      d.y += (this.rng.next() - 0.5) * w.spread * 2;
-      d.z += (this.rng.next() - 0.5) * w.spread * 2;
-      d.normalize();
-      const end = origin.clone().addScaledVector(d, w.range);
-      let best = null;
-      let bestDist = w.range;
-      for (const t of targets) {
-        if (t.dead || t.hp <= 0) continue;
-        const to = new THREE.Vector3().subVectors(t.pos, origin);
-        const along = to.dot(d);
-        if (along < 0 || along > bestDist) continue;
-        const perp = to.clone().addScaledVector(d, -along).length();
-        if (perp < 1.6 && along < bestDist) {
-          best = t;
-          bestDist = along;
-        }
-      }
-      const hitPoint = origin.clone().addScaledVector(d, best ? bestDist : w.range);
-      this.addTracer(origin, hitPoint);
-      if (best) {
-        best.hp -= w.damage;
-        this.fx.burst('blood', hitPoint, 5, 3);
-        if (best.hp <= 0) {
-          best.dead = true;
-          if (best.onDeath) best.onDeath();
-        }
-      } else if (this.rng.chance(0.3)) {
-        this.fx.burst('spark', hitPoint, 2, 3);
-      }
-      this.fx.muzzle(origin.clone().addScaledVector(d, 1.2), d);
+    const end = best
+      ? new THREE.Vector3(best.x, 1.3, best.z)
+      : origin.clone().add(dir.clone().multiplyScalar(46));
+    this.fx.tracer(muzzle, end);
+    if (best) {
+      best.hp -= 34;
+      best.hitFlash = 0.12;
+      this.fx.burst(new THREE.Vector3(best.x, 1.4, best.z), 0xff5544, 8, 4);
+      if (best.hp <= 0) {
+        this.kills++;
+        this.scene.remove(best.mesh);
+        this.enemies.splice(this.enemies.indexOf(best), 1);
+        this.fx.burst(new THREE.Vector3(best.x, 1.0, best.z), 0xaa2222, 16, 5);
+        this.audio.thud();
+        // Downed enemies drop ammo half the time — keeps a long fight going.
+        if (Math.random() < 0.5) this.giveAmmo(12);
+        if (onHit) onHit(best, true);
+      } else if (onHit) onHit(best, false);
     }
-    if (this.audio) this.audio.shot(w.kind);
-    return true;
+    return best;
   }
 
-  addTracer(from, to) {
-    const len = from.distanceTo(to);
-    const m = new THREE.Mesh(this.tracerGeo, this.tracerMat);
-    m.position.copy(from).lerp(to, 0.5);
-    m.scale.z = len;
-    m.lookAt(to);
-    this.scene.add(m);
-    this.tracers.push({ mesh: m, life: 0.09 });
+  reload() {
+    if (this.reloadTimer > 0 || this.ammoReserve <= 0 || this.ammo === 24) return;
+    this.reloadTimer = 1.1;
+    const take = Math.min(24 - this.ammo, this.ammoReserve);
+    this.ammo += take;
+    this.ammoReserve -= take;
   }
 
-  explodeCar(car, fx, audio) {
-    if (car.dead) return;
-    car.dead = true;
-    fx.explosion(car.pos.clone().add(new THREE.Vector3(0, 1, 0)));
-    if (audio) audio.explosion();
-    // char the paint
-    if (car.mesh.userData.paint) car.mesh.userData.paint.color.setHex(0x1a1a1a);
-    car.speed = 0;
-    // tip the wreck
-    car.mesh.rotation.z = 0.12;
-    car.mesh.position.y = 0.3;
+  // Ammo pickup (dropped by a downed enemy, or found in a mission crate).
+  giveAmmo(n) {
+    this.ammoReserve = Math.min(240, this.ammoReserve + n);
+    this.audio.blip(520);
   }
 
-  damageCar(car, amount, fx, audio) {
-    car.hp -= amount;
-    if (car.hp <= 0) this.explodeCar(car, fx, audio);
-    else if (this.rng.chance(0.4)) fx.burst('smoke', car.pos.clone().add(new THREE.Vector3(0, 1.2, 0)), 2, 1.5);
+  hurt(amount) {
+    this.health = clamp(this.health - amount, 0, this.maxHealth);
+    this.regenTimer = 4;
+    return this.health <= 0;
   }
 
-  update(dt) {
+  heal(amount) { this.health = clamp(this.health + amount, 0, this.maxHealth); }
+
+  update(dt, px, pz, playerDir) {
     this.cooldown = Math.max(0, this.cooldown - dt);
-    for (let i = this.tracers.length - 1; i >= 0; i--) {
-      const t = this.tracers[i];
-      t.life -= dt;
-      if (t.life <= 0) {
-        this.scene.remove(t.mesh);
-        this.tracers.splice(i, 1);
+    if (this.reloadTimer > 0) this.reloadTimer -= dt;
+    this.regenTimer -= dt;
+    if (this.regenTimer <= 0 && this.health > 0 && this.health < this.maxHealth) {
+      this.health = clamp(this.health + 3.5 * dt, 0, this.maxHealth);
+    }
+    for (const e of this.enemies) {
+      e.hitFlash = Math.max(0, e.hitFlash - dt);
+      const dx = px - e.x, dz = pz - e.z;
+      const d = Math.hypot(dx, dz) || 1;
+      // Advance to ~14m, then hold and fire with range-based accuracy.
+      if (d > 15) {
+        e.state = 'advance';
+        e.x += (dx / d) * 3.4 * dt;
+        e.z += (dz / d) * 3.4 * dt;
+      } else {
+        e.state = 'firing';
+        e.shootTimer -= dt;
+        if (e.shootTimer <= 0) {
+          e.shootTimer = 1.1 + Math.random() * 0.9;
+          const hitChance = clamp(0.42 - d * 0.014, 0.08, 0.42);
+          const from = new THREE.Vector3(e.x, 1.4, e.z);
+          const to = new THREE.Vector3(px, 1.3, pz);
+          this.fx.tracer(from, to);
+          this.audio.shot();
+          if (Math.random() < hitChance) {
+            this.hurt(7 + Math.random() * 6);
+            this.fx.burst(new THREE.Vector3(px, 1.4, pz), 0xff2222, 6, 3);
+          }
+        }
       }
+      e.heading = Math.atan2(dx, dz);
+      e.mesh.position.set(e.x, 0, e.z);
+      e.mesh.rotation.y = e.heading;
+      const u = e.mesh.userData;
+      const ph = performance.now() / 160;
+      const swing = e.state === 'advance' ? Math.sin(ph) * 0.5 : 0;
+      u.legL.rotation.x = swing;
+      u.legR.rotation.x = -swing;
+      u.armL.rotation.x = e.state === 'firing' ? -1.2 : -swing * 0.7;
+      u.armR.rotation.x = e.state === 'firing' ? -1.2 : swing * 0.7;
     }
   }
 }

@@ -1,255 +1,257 @@
-// missions.js — sixteen story missions for Neon Bay. Each mission is a
-// short chain of steps (drive, collect, hack, defend, race, escape) with a
-// beacon in the world, an objective line on the HUD and a cash + respect
-// reward at the end. The chain is the game's spine; the screenshots show
-// missions mid-progress, never at the start.
+// missions.js — the story of Neon Bay. Rae Vega, ex-wheelwoman, is back
+// in town the week Hurricane Solana is due to hit. Sixteen jobs across
+// the crew — Milo, Tess and Big Dario — against Commissioner Kross and
+// the Tide syndicate, ending in a storm-night heist at the docks.
+// Each mission is one objective kind the engine already knows: goto,
+// drive, collect, eliminate, race, deliver, escape, heist.
 import * as THREE from 'three';
-import { makeRng } from './rng.js';
 
-const V = (x, z, y) => new THREE.Vector3(x, y || 0, z);
+export const STORY_INTRO = 'Neon Bay. Hurricane Solana makes landfall in 7 days. Rae Vega is back — broke, wanted, and owed one last job by the people who burned her.';
 
 export const MISSIONS = [
-  { id: 0, name: 'Neon Tide', giver: 'ROOK', brief: 'Meet Rook on the pier. He has a job and a warning about the storm.', reward: { money: 400, respect: 5 }, steps: [
-    { type: 'drive', text: 'Meet Rook at the pier', target: V(-300, -120) },
-    { type: 'drive', text: 'Drive Rook to the marina', target: V(-320, 120) },
-  ]},
-  { id: 1, name: 'First Light', giver: 'ROOK', brief: 'A package is waiting at the market. Pick it up, keep it quiet.', reward: { money: 650, respect: 6 }, steps: [
-    { type: 'collect', text: 'Pick up the package at the market', target: V(345, 20), count: 1 },
-    { type: 'drive', text: 'Deliver the package downtown', target: V(-60, 0) },
-  ]},
-  { id: 2, name: 'Paper Trail', giver: 'MARA', brief: 'Three ledgers in Old Town prove the docks are dirty. Grab them all.', reward: { money: 900, respect: 8 }, steps: [
-    { type: 'collect', text: 'Collect the ledgers in Old Town', target: V(300, 120), count: 3 },
-    { type: 'drive', text: 'Bring the ledgers to Mara', target: V(-120, 60) },
-  ]},
-  { id: 3, name: 'Dockwork', giver: 'REYES', brief: 'A crate at the harbour holds parts Reyes needs. Lift it and go.', reward: { money: 1100, respect: 9 }, steps: [
-    { type: 'collect', text: 'Lift the crate at the harbour', target: V(0, 400), count: 1 },
-    { type: 'drive', text: 'Drop the crate at the garage', target: V(120, 180) },
-  ]},
-  { id: 4, name: 'Street Cred', giver: 'JAX', brief: 'Eight checkpoints, one downtown loop. Beat the clock and the street talks.', reward: { money: 1500, respect: 12 }, steps: [
-    { type: 'race', text: 'Race the downtown loop', target: V(-240, -180), checkpoints: [V(-240, -180), V(120, -180), V(120, 180), V(-240, 180), V(-240, -60), V(120, -60), V(120, 60), V(-240, 60)] },
-  ]},
-  { id: 5, name: 'Silver Tongue', giver: 'ROOK', brief: 'Drive the contact to the hotel. No scratches, no sirens, no questions.', reward: { money: 1300, respect: 10 }, steps: [
-    { type: 'drive', text: 'Pick up the contact at the plaza', target: V(345, 20) },
-    { type: 'drive', text: 'Drop the contact at the hotel', target: V(-60, -120) },
-  ]},
-  { id: 6, name: 'Blackout', giver: 'REYES', brief: 'Two power boxes keep the port lit. Kill them both so Reyes can work.', reward: { money: 1600, respect: 12 }, steps: [
-    { type: 'hack', text: 'Cut power at the harbour boxes', target: V(-60, 360), count: 2, duration: 6 },
-  ]},
-  { id: 7, name: 'Eye Wall', giver: 'MARA', brief: 'The hurricane is coming. Four supply drops before the eye wall hits.', reward: { money: 1800, respect: 13 }, steps: [
-    { type: 'collect', text: 'Grab the supply drops', target: V(-200, -200), count: 4 },
-    { type: 'drive', text: 'Get the supplies to the shelter', target: V(0, -380) },
-  ]},
-  { id: 8, name: 'Levee Breach', giver: 'JAX', brief: 'Hold the levee while the crew seals it. They will come for you.', reward: { money: 2200, respect: 15 }, steps: [
-    { type: 'defend', text: 'Hold the levee', target: V(180, 300), duration: 45 },
-  ]},
-  { id: 9, name: 'Turncoat', giver: 'ROOK', brief: 'A rat is running for the highway. Run him down before he talks.', reward: { money: 2400, respect: 16 }, steps: [
-    { type: 'chase', text: 'Run down the rat on the highway', target: V(180, -300) },
-  ]},
-  { id: 10, name: 'Radio Free Bay', giver: 'REYES', brief: 'The tower has to stay up. Hold the roof while Reyes broadcasts.', reward: { money: 2600, respect: 17 }, steps: [
-    { type: 'defend', text: 'Defend the radio tower', target: V(-120, -120), duration: 50 },
-  ]},
-  { id: 11, name: 'High Stakes', giver: 'ROOK', brief: 'The casino vault prototype is ours tonight. Hack it, then run.', reward: { money: 3400, respect: 20 }, steps: [
-    { type: 'hack', text: 'Hack the vault terminal', target: V(60, 400), count: 1, duration: 10 },
-    { type: 'escape', text: 'Escape with the prototype', target: V(-300, -120), needWanted: 3 },
-  ]},
-  { id: 12, name: 'Category 5', giver: 'MARA', brief: 'The surge is here. Get to the hills safehouse with the whole city chasing you.', reward: { money: 3000, respect: 18 }, steps: [
-    { type: 'escape', text: 'Reach the hills safehouse', target: V(0, -380), needWanted: 3 },
-  ]},
-  { id: 13, name: 'Corner Store Caper', giver: 'JAX', brief: 'Two stores, fast hands, faster wheels. The NBPD will notice.', reward: { money: 2800, respect: 17 }, steps: [
-    { type: 'collect', text: 'Hit the corner stores', target: V(240, 60), count: 2 },
-    { type: 'escape', text: 'Lose the heat at the pier', target: V(-300, 200), needWanted: 2 },
-  ]},
-  { id: 14, name: 'Last Stand', giver: 'ROOK', brief: 'The market square, tonight, everyone. Hold it until dawn breaks the siege.', reward: { money: 4200, respect: 24 }, steps: [
-    { type: 'defend', text: 'Hold the market square', target: V(345, 20), duration: 60 },
-  ]},
-  { id: 15, name: 'Neon Dawn', giver: 'ROOK', brief: 'One last delivery: the prototype to the pier, five stars on your tail, sunrise on the bay.', reward: { money: 6000, respect: 30 }, steps: [
-    { type: 'drive', text: 'Take the prototype to the pier', target: V(-300, -120) },
-    { type: 'escape', text: 'Escape the five-star manhunt', target: V(180, 420), needWanted: 5 },
-  ]},
+  { id: 'm01', title: 'Homecoming', giver: 'Milo Reyes', kind: 'goto', x: -140, z: 175, reward: 400, text: 'Milo is waiting on the boardwalk. Walk to the marker and hear him out.' },
+  { id: 'm02', title: 'Hot Wheels', giver: 'Milo Reyes', kind: 'drive', x: 140, z: 0, reward: 600, text: 'Steal a car — any car — and drive it to the garage on Calle Verde. E to enter.' },
+  { id: 'm03', title: 'Market Run', giver: 'Tess Marlowe', kind: 'collect', x: 175, z: -70, count: 4, reward: 800, text: 'Four supply crates are stashed around the night market. Grab them all.' },
+  { id: 'm04', title: 'First Blood', giver: 'Tess Marlowe', kind: 'eliminate', x: 155, z: 0, count: 3, reward: 1000, text: 'Tide lookouts hold the market road off Calle Verde. Clear them out. F to shoot.' },
+  { id: 'm05', title: 'Bayfront Sprint', giver: 'Milo Reyes', kind: 'race', x: -210, z: 210, reward: 1200, text: 'Race the beach road checkpoints before the timer runs out. Stay in a car.' },
+  { id: 'm06', title: 'The Informant', giver: 'Big Dario', kind: 'goto', x: -175, z: -105, reward: 900, text: 'A dockworker at the Old Marina knows where Kross keeps the ledgers. Meet him.' },
+  { id: 'm07', title: 'Ledger Lift', giver: 'Big Dario', kind: 'collect', x: -35, z: -210, count: 5, reward: 1400, text: 'Five ledger pages hidden among the dock containers. The Tide patrols the yard.' },
+  { id: 'm08', title: 'Downtown Drop', giver: 'Tess Marlowe', kind: 'deliver', x: 0, z: 35, px: 140, pz: 140, reward: 1600, text: 'Pick up the package at the plaza fountain, deliver it to the tower on 70th. Timed.' },
+  { id: 'm09', title: 'Heat Wave', giver: 'Milo Reyes', kind: 'escape', x: -70, z: 210, reward: 1800, text: 'Kross put two stars on you. Lose the heat, then reach the beach safehouse.' },
+  { id: 'm10', title: 'Air One', giver: 'Tess Marlowe', kind: 'eliminate', x: 70, z: 70, count: 4, reward: 2200, text: 'Tide enforcers guard the downtown rooftop lot. Four of them. The heli is watching.' },
+  { id: 'm11', title: 'The Getaway', giver: 'Milo Reyes', kind: 'race', x: 210, z: -210, reward: 2400, text: 'Night race across the causeway. Checkpoints over the bridge, timer is tight.' },
+  { id: 'm12', title: 'Safehouse Siege', giver: 'Big Dario', kind: 'eliminate', x: -210, z: -210, count: 5, reward: 2600, text: 'They found the marina safehouse. Hold the block — five attackers, no backup.' },
+  { id: 'm13', title: 'Storm Warning', giver: 'Tess Marlowe', kind: 'collect', x: 0, z: -70, count: 6, reward: 2800, text: 'Storm supplies for the crew, six crates across Downtown Neon. Rain is coming in.' },
+  { id: 'm14', title: 'Kross Files', giver: 'Milo Reyes', kind: 'deliver', x: -140, z: -140, px: 210, pz: 70, reward: 3200, text: 'Steal the files from the NBPD annex, deliver them to the reporter on the east bridge.' },
+  { id: 'm15', title: 'The Crew Rides', giver: 'Big Dario', kind: 'drive', x: 0, z: -245, reward: 3600, text: 'Drive the whole crew to the docks staging point. Milo, Tess and Dario ride with you.' },
+  { id: 'm16', title: 'Solana Heist', giver: 'Rae Vega', kind: 'heist', x: 35, z: -245, count: 6, reward: 10000, text: 'Hurricane night. Crack the Tide vault at the docks, grab six gold bars, and vanish into the storm.' },
 ];
 
-export class MissionSystem {
+export class MissionManager {
   constructor(scene, fx, audio) {
     this.scene = scene;
     this.fx = fx;
     this.audio = audio;
-    this.rng = makeRng(20240);
-    this.index = 0;
-    this.stepIndex = 0;
-    this.done = false;
-    this.stepTimer = 0;
-    this.stepProgress = 0;
-    this.collected = 0;
-    this.raceCp = 0;
-    this.items = [];
-    this.chaseCar = null;
-    this.beacon = this.makeBeacon();
-    this.onMissionComplete = null;
-    this.onStepComplete = null;
+    this.index = 0; // next mission to play
+    this.active = null; // runtime state of the running mission
+    this.completed = 0;
+    this.marker = null;
+    this.timer = 0;
+    this.onUpdate = null; // (text) => HUD
+    this.onComplete = null; // (mission, reward) => HUD + save
+    this.onFail = null;
+    this._pickupMeshes = [];
+    this._enemyCount = 0;
+    this._checkpoint = 0;
+    this._checkpoints = [];
+    this._phase = 'go'; // deliver: go pickup -> go dropoff
   }
 
-  makeBeacon() {
-    const g = new THREE.Group();
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.2, 2.2, 60, 12, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })
+  get current() { return MISSIONS[this.index] || null; }
+  get done() { return this.index >= MISSIONS.length; }
+
+  // One-line briefing for the HUD / pause screen: next job and progress.
+  briefing() {
+    const m = this.current;
+    if (!m) return 'Story complete — free roam. The city is yours.';
+    return `Job ${this.index + 1}/16 — ${m.title} (${m.giver}): ${m.text}`;
+  }
+
+  // Seconds left on a timed mission, or 0 when untimed / idle.
+  timeLeft() { return this.active && this.timer > 0 ? Math.max(0, Math.ceil(this.timer)) : 0; }
+
+  start() {
+    const m = this.current;
+    if (!m || this.active) return false;
+    this.active = { ...m, progress: 0, startedAt: performance.now() };
+    this._phase = 'go';
+    this._checkpoint = 0;
+    this.timer = m.kind === 'race' ? 75 : m.kind === 'deliver' ? 90 : 0;
+    this._clearProps();
+    if (m.kind === 'collect' || m.kind === 'heist') this._spawnPickups(m);
+    if (m.kind === 'eliminate') this._spawnEnemies(m);
+    if (m.kind === 'race') this._spawnCheckpoints(m);
+    if (m.kind === 'escape') this._armEscape();
+    if (m.kind === 'drive' && m.id === 'm15') this._crewRide();
+    this._placeMarker(this._targetPos());
+    this._say(`${m.title} — ${m.giver}: ${m.text}`);
+    return true;
+  }
+
+  _targetPos() {
+    const m = this.active;
+    if (!m) return { x: 0, z: 0 };
+    if (m.kind === 'deliver' && this._phase === 'go') return { x: m.px, z: m.pz };
+    return { x: m.x, z: m.z };
+  }
+
+  _placeMarker(p) {
+    this._removeMarker();
+    const group = new THREE.Group();
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.2, 2.2, 42, 14, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false })
     );
-    pillar.position.y = 30;
-    g.add(pillar);
+    beam.position.y = 21;
+    group.add(beam);
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(2.6, 3.6, 24),
-      new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false })
+      new THREE.TorusGeometry(3.2, 0.35, 8, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffd166 })
     );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.3;
-    g.add(ring);
-    const diamond = new THREE.Mesh(
-      new THREE.OctahedronGeometry(1.4),
-      new THREE.MeshBasicMaterial({ color: 0xffd23e })
-    );
-    diamond.position.y = 12;
-    g.add(diamond);
-    g.visible = false;
-    this.scene.add(g);
-    this.beaconDiamond = diamond;
-    return g;
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.4;
+    group.add(ring);
+    group.position.set(p.x, 0, p.z);
+    this.scene.add(group);
+    this.marker = group;
   }
 
-  get mission() {
-    return MISSIONS[this.index];
+  _removeMarker() {
+    if (this.marker) { this.scene.remove(this.marker); this.marker = null; }
   }
 
-  get step() {
-    const m = this.mission;
-    return m ? m.steps[this.stepIndex] : null;
+  _clearProps() {
+    for (const p of this._pickupMeshes) this.scene.remove(p);
+    this._pickupMeshes = [];
+    for (const c of this._checkpoints) this.scene.remove(c);
+    this._checkpoints = [];
   }
 
-  get objectiveText() {
-    const m = this.mission;
-    if (!m || this.done) return 'All missions complete — Neon Bay is yours';
-    const s = this.step;
-    let suffix = '';
-    if (s.type === 'collect') suffix = ` ${this.collected}/${s.count}`;
-    if (s.type === 'race') suffix = ` ${this.raceCp}/${s.checkpoints.length}`;
-    if (s.type === 'hack' || s.type === 'defend') suffix = ` ${Math.ceil(this.stepTimer)}s`;
-    return `${this.stepIndex + 1}/${m.steps.length} ${s.text}${suffix}`;
-  }
-
-  start(index) {
-    this.index = index;
-    this.stepIndex = 0;
-    this.done = false;
-    this.beginStep();
-  }
-
-  beginStep() {
-    const s = this.step;
-    this.stepTimer = s.duration || 0;
-    this.stepProgress = 0;
-    this.collected = 0;
-    this.raceCp = 0;
-    this.clearItems();
-    if (s.type === 'collect') this.spawnItems(s);
-    if (s.type === 'race') this.spawnItems(s);
-    this.beacon.visible = true;
-    this.beacon.position.set(s.target.x, 0, s.target.z);
-  }
-
-  clearItems() {
-    for (const it of this.items) this.scene.remove(it);
-    this.items = [];
-  }
-
-  spawnItems(s) {
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffd23e });
-    const geo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
-    const spots = [];
-    if (s.type === 'race') {
-      for (const cp of s.checkpoints) spots.push(cp);
-    } else {
-      for (let i = 0; i < s.count; i++) {
-        const a = (i / s.count) * Math.PI * 2;
-        spots.push(new THREE.Vector3(s.target.x + Math.cos(a) * 16, 0, s.target.z + Math.sin(a) * 16));
-      }
-    }
-    for (const p of spots) {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(p.x, 1.4, p.z);
-      this.scene.add(m);
-      this.items.push(m);
+  _spawnPickups(m) {
+    const geo = new THREE.BoxGeometry(1.6, 1.6, 1.6);
+    for (let i = 0; i < m.count; i++) {
+      const mat = new THREE.MeshLambertMaterial({ color: m.kind === 'heist' ? 0xffd700 : 0x2ecc71, emissive: m.kind === 'heist' ? 0xaa8800 : 0x1e8449, emissiveIntensity: 0.9 });
+      const box = new THREE.Mesh(geo, mat);
+      const a = (i / m.count) * Math.PI * 2;
+      box.position.set(m.x + Math.cos(a) * (10 + i * 4), 0.9, m.z + Math.sin(a) * (10 + i * 4));
+      this.scene.add(box);
+      this._pickupMeshes.push(box);
     }
   }
 
-  completeStep(game) {
-    const m = this.mission;
-    if (this.audio) this.audio.cash();
-    if (this.onStepComplete) this.onStepComplete(m, this.stepIndex);
-    this.stepIndex += 1;
-    if (this.stepIndex >= m.steps.length) {
-      game.state.money += m.reward.money;
-      game.state.respect += m.reward.respect;
-      if (this.audio) this.audio.missionDone();
-      if (this.onMissionComplete) this.onMissionComplete(m);
-      this.index += 1;
-      this.stepIndex = 0;
-      if (this.index >= MISSIONS.length) {
-        this.done = true;
-        this.beacon.visible = false;
-        this.clearItems();
-        return;
-      }
-    }
-    this.beginStep();
+  _spawnEnemies(m) {
+    this._enemyCount = m.count;
+    if (this._spawnEnemyFn) this._spawnEnemyFn(m.x, m.z, m.count);
   }
 
-  update(dt, game, t) {
-    if (this.done || !this.mission) return;
-    const s = this.step;
-    const p = game.playerPos();
-    const dist = Math.hypot(p.x - s.target.x, p.z - s.target.z);
-    this.beaconDiamond.rotation.y += dt * 2;
-    this.beaconDiamond.position.y = 12 + Math.sin(t * 2) * 1.2;
-    if (s.type === 'drive' || s.type === 'escape') {
-      const okWanted = s.type === 'escape' ? game.police.wanted >= (s.needWanted || 1) : true;
-      if (dist < 10 && okWanted) this.completeStep(game);
-    } else if (s.type === 'collect') {
-      for (let i = this.items.length - 1; i >= 0; i--) {
-        const it = this.items[i];
-        it.rotation.y += dt * 2;
-        if (Math.hypot(p.x - it.position.x, p.z - it.position.z) < 3.2) {
-          this.scene.remove(it);
-          this.items.splice(i, 1);
-          this.collected += 1;
-          this.fx.burst('spark', it.position.clone(), 6, 3);
-          if (this.audio) this.audio.cash();
-        }
-      }
-      if (this.collected >= s.count) this.completeStep(game);
-    } else if (s.type === 'hack') {
-      if (dist < 9) {
-        this.stepProgress += dt * (game.state.crew[2].recruited ? 2 : 1);
-        this.stepTimer = Math.max(0, (s.duration || 6) - this.stepProgress);
-        if (this.stepProgress >= (s.duration || 6)) this.completeStep(game);
-      }
-    } else if (s.type === 'defend') {
-      if (dist < 26) {
-        this.stepTimer -= dt;
-        if (Math.random() < dt * 0.35 && game.police.wanted < 5) game.police.addWanted(1);
-        if (this.stepTimer <= 0) this.completeStep(game);
-      }
-    } else if (s.type === 'race') {
-      const cp = s.checkpoints[this.raceCp];
-      if (cp && Math.hypot(p.x - cp.x, p.z - cp.z) < 11) {
-        this.fx.burst('spark', new THREE.Vector3(cp.x, 1, cp.z), 8, 4);
-        this.raceCp += 1;
-        if (this.raceCp >= s.checkpoints.length) this.completeStep(game);
-        else {
-          const next = s.checkpoints[this.raceCp];
-          this.beacon.position.set(next.x, 0, next.z);
-        }
-      }
-    } else if (s.type === 'chase') {
-      if (dist < 8) this.completeStep(game);
+  _spawnCheckpoints(m) {
+    const spots = [
+      { x: m.x, z: m.z },
+      { x: 0, z: 210 }, { x: 140, z: 210 }, { x: 210, z: 140 },
+      { x: 210, z: 0 }, { x: 210, z: -140 }, { x: m.x + 60, z: m.z },
+    ];
+    for (const s of spots.slice(0, 5)) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(4.5, 0.5, 8, 28),
+        new THREE.MeshBasicMaterial({ color: 0x00e5ff })
+      );
+      ring.position.set(s.x, 2.2, s.z);
+      this.scene.add(ring);
+      this._checkpoints.push(ring);
     }
+  }
+
+  _armEscape() {
+    if (this._wantedFn) this._wantedFn(2);
+  }
+
+  _crewRide() {
+    if (this._crewFn) this._crewFn(true);
+  }
+
+  // Hooks wired by main.js (keeps missions free of the player object).
+  bind({ spawnEnemyFn, wantedFn, crewFn }) {
+    this._spawnEnemyFn = spawnEnemyFn;
+    this._wantedFn = wantedFn;
+    this._crewFn = crewFn;
+  }
+
+  _say(text) { if (this.onUpdate) this.onUpdate(text); }
+
+  abort(reason) {
+    if (!this.active) return;
+    this._clearProps();
+    this._removeMarker();
+    this.active = null;
+    if (this.onFail) this.onFail(reason || 'Mission failed.');
+  }
+
+  complete() {
+    const m = this.active;
+    this._clearProps();
+    this._removeMarker();
+    this.active = null;
+    this.index++;
+    this.completed++;
+    this.audio.blip(880);
+    this.fx.burst(new THREE.Vector3(0, 4, 0), 0xffd166, 1, 1); // tiny celebratory spark, replaced by HUD
+    if (this.onComplete) this.onComplete(m, m.reward);
+  }
+
+  // Called every frame with the live game state.
+  update(dt, state) {
+    if (!this.active) return;
+    const m = this.active;
+    if (this.timer > 0) {
+      this.timer -= dt;
+      if (this.timer <= 0) { this.abort('Out of time.'); return; }
+    }
+    const t = this._targetPos();
+    const d = Math.hypot(state.px - t.x, state.pz - t.z);
+    if (this.marker) {
+      this.marker.rotation.y += dt * 1.2;
+      this.marker.children[1].position.y = 0.4 + Math.sin(performance.now() / 300) * 0.25;
+    }
+    for (const c of this._checkpoints) c.rotation.y += dt;
+    // Pickups: walk or drive over them.
+    for (let i = this._pickupMeshes.length - 1; i >= 0; i--) {
+      const p = this._pickupMeshes[i];
+      p.rotation.y += dt * 2;
+      p.position.y = 0.9 + Math.sin(performance.now() / 280 + i) * 0.18;
+      if (Math.hypot(state.px - p.position.x, state.pz - p.position.z) < 3.2) {
+        this.scene.remove(p);
+        this._pickupMeshes.splice(i, 1);
+        m.progress++;
+        this.audio.blip(720 + m.progress * 90);
+        this._say(`${m.title}: ${m.progress}/${m.count} collected.`);
+        if (m.progress >= m.count) { this.complete(); return; }
+      }
+    }
+    // Race checkpoints in order.
+    if (m.kind === 'race' && this._checkpoints.length) {
+      const cp = this._checkpoints[this._checkpoint];
+      if (cp && Math.hypot(state.px - cp.position.x, state.pz - cp.position.z) < 6) {
+        cp.material.color.setHex(0x2ecc71);
+        this._checkpoint++;
+        this.audio.blip(990);
+        this._say(`${m.title}: checkpoint ${this._checkpoint}/${this._checkpoints.length}.`);
+        if (this._checkpoint >= this._checkpoints.length) { this.complete(); return; }
+      }
+    }
+    if (m.kind === 'goto' && d < 5) { this.complete(); return; }
+    if (m.kind === 'drive' && state.driving && d < 6) { this.complete(); return; }
+    if (m.kind === 'eliminate' && state.enemiesLeft === 0 && this._enemyCount > 0) { this.complete(); return; }
+    if (m.kind === 'deliver') {
+      if (this._phase === 'go' && d < 5) {
+        this._phase = 'drop';
+        this._placeMarker({ x: m.x, z: m.z });
+        this._say(`${m.title}: package picked up — deliver it now, timer running.`);
+      } else if (this._phase === 'drop' && d < 5) { this.complete(); return; }
+    }
+    if (m.kind === 'escape' && state.wanted === 0 && d < 6) { this.complete(); return; }
+    if (m.kind === 'heist') {
+      // Heist completes when all gold is collected (handled by pickups).
+      if (state.wanted >= 3 && this._phase === 'go') {
+        this._phase = 'hot';
+        this._say(`${m.title}: vault open — NBPD is coming. Grab the gold and run!`);
+      }
+    }
+  }
+
+  // Called by combat when an enemy dies during an eliminate mission.
+  onEnemyKilled() {
+    if (!this.active || this.active.kind !== 'eliminate') return;
+    this._enemyCount--;
+    this._say(`${this.active.title}: ${this._enemyCount} hostiles left.`);
   }
 }
