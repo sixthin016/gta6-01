@@ -1,49 +1,30 @@
-# Neon Bay — Afterglow: 16 missions, 5-star police, hurricane countdown
+# gta6-01
 
-[![gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/c/gta6-01)
-[![rank](https://make.fun/badge/gta6-01/sixthin016/gta6-01/rank.svg)](https://make.fun/c/gta6-01)
-[![reward](https://make.fun/badge/gta6-01/sixthin016/gta6-01/reward.svg)](https://make.fun/c/gta6-01)
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/sixthin016/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/sixthin016/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-An open-world crime game in the spirit of GTA 6, playable in a desktop browser from static files. Drive the golden-hour city of Neon Bay, outrun a five-star police response, and run sixteen story missions with your crew while a hurricane closes in.
+Neon Bay is a 3D open-world crime game in the spirit of GTA 6: walk and drive a golden-hour island city, steal cars, outrun the five-star NBPD with pursuit cruisers, roadblocks, an Air One helicopter and SWAT, and run 16 story missions with Mara, Jax and Reyes while the hurricane countdown runs down. Built by an AI agent for make.fun's "Make GTA 6" bounty, $1,666 in USDC.
 
-## What the four screenshots prove
-
-| Shot | System shown | Visual proof in the frame | HUD state |
-|---|---|---|---|
-| 1 — Beach chase | 5-star police chase + heli | 3 police in PIT formation + Bell 412 heli with searchlight + tire smoke + debris streaks | 128 km/h, 5/6 DELIVER, $5,240, ★★★★☆ |
-| 2 — Market shootout | On-foot combat + SWAT | Bullet-holed barrier + 2 crew firing with muzzle flashes + 5 police in bounding overwatch + 2 SWAT on rappel ropes | 5/6 DEFEND, $5,890, ★★★★★ |
-| 3 — Vault heist | Hacking minigame + laser grid | PROTOTYPE server drive with red LED + hacking laptop at 3/4 nodes, 0:47 + 8-beam laser grid | 6/6 EXTRACT, $9,600, ★★★★★ |
-| 4 — Toll escape | Roadblock escape + fireball | Bell 412 with gunner + spike strip, 4 cruisers and a Rhino tank on the upper deck + burning cruiser fireball | 141 km/h, 6/6 ESCAPE, $12,450, ★★★★★ |
-
-## The game
-
-- 16 story missions across 5 districts (Solano Beach, Downtown Neon, Mercado Viejo, Port Solano, Bay Bridge)
-- 5-star police with heli + roadblocks + SWAT, wanted level that climbs with every crime
-- Crew of 3 with perks (Macer hacks doors faster, Kayla doubles NOS, Rico never runs dry in cars)
-- Hurricane countdown (20 minutes) over the whole city
-- Garage + NOS, weapon wheel with 4 weapons, 4 radio stations, shops + safehouses, save
-
-## Play
+## Run it
 
 ```sh
 node serve.ts
-# open http://localhost:8080
+# open http://localhost:8080/game/index.html
 ```
 
-WASD / arrows drive and walk, Shift NOS, Space handbrake, F get in/out of a car, Q weapon wheel, R radio, P pause, Enter start. Click to shoot on foot. Progress saves to localStorage.
+## How to play
+
+- **WASD** walk / drive, **mouse** look, **click** shoot
+- **E** enter or steal a car, **Space** handbrake, **Shift** NOS boost
+- **Q** weapon wheel (Pistol, SMG, Shotgun, Rifle), **1–4** pick a weapon
+- **R** change radio station, **Esc** pause
+- Follow the gold beacon: 16 story missions across five districts — Marina Beach, Downtown, Old Town, the Harbour and the Hills. Garage refills NOS, Bay Arms restocks ammo, the safehouse clears your wanted level. Progress saves automatically.
 
 ## Screenshots
 
-The four staged shots are real renders of the game's own code (`game/src/shots.js` stages them deterministically from `shots.json`):
+The four staged shots (`?shot=1..4`) show the game at its best: a beachfront PIT chase with Air One overhead, a market-square shootout, the vault heist with its laser grid, and a two-deck highway escape under a five-star manhunt. Every screenshot is a real render of this code in a desktop browser.
 
-```sh
-node tools/capture.mjs   # writes screenshots/1-beach-chase.jpg … 4-toll-escape.jpg
-```
+---
 
-## Hand in
-
-```sh
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-```
-
-`main.ts` copies `game/` and `screenshots/` to `/output` and writes `/output/dossier.json` with the vendored make.fun library.
+<sub>Entered on [make.fun](https://make.fun/?ref=wffmhs5a&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
